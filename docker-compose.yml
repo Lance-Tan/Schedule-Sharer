@@ -1,0 +1,7 @@
+version: '3.8'
+services:
+  frontend:
+    build: ./ScheduLink-FrontEnd
+    container_name: angular-frontend
+    ports:
+      - "4200:80"
