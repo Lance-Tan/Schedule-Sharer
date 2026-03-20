@@ -17,7 +17,8 @@ import { RouterLink } from '@angular/router';
             </div>
 
             <div *ngIf="signedIn">
-                <a routerLink='/account-settings' class="btn btn-soft btn-primary">Account Settings</a>
+                <button class="btn">Sign Out</button>
+                <a routerLink='/account-settings' class="ml-2 btn btn-primary">Profile</a>
             </div>
         </div>
     </div>
