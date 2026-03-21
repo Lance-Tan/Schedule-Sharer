@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
     template: `
     <form class="fieldset">
         <label class="label font-semibold text-black">Username</label>
-        <input type="email" class="input" placeholder="Username" />
+        <input type="text" class="input" placeholder="Username" />
 
         <label class="label font-semibold text-black">Password</label>
         <input type="password" class="input" placeholder="Password" />
@@ -16,7 +16,7 @@ import { RouterLink } from '@angular/router';
         <legend class="fieldset-legend">Upload Current Class Schedule (.ics file) </legend>
         <input type="file" class="file-input" />
 
-        <button class="btn btn-primary mt-4 rounded-lg">Login</button>
+        <button class="btn btn-primary mt-4 rounded-lg">Sign Up</button>
     </form>
   `,
   styles: '',
