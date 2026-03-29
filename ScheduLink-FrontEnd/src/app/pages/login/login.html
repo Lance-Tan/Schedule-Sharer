@@ -1,0 +1,24 @@
+<div class="bg-base-200 w-screen h-screen">
+
+  <app-nav-bar [signedIn]=false></app-nav-bar>
+  
+  <main class="flex items-center h-3/4">
+    <div class="text-center w-screen">
+      <p class="font-semibold text-4xl mb-5">Welcome!</p>
+
+      <div class="flex flex-wrap flex-row gap-4 justify-center">
+        <div class="card w-90 bg-base-100 shadow-sm p-4 rounded-2xl h-fit my-auto">
+            <h2 class="font-semibold text-2xl">Log In</h2>
+            <app-login-form></app-login-form>
+        </div>
+
+        <p class="text-3xl my-auto sm:w-auto w-full">or</p>
+
+        <div class="card w-90 bg-base-100 shadow-sm p-4 rounded-2xl">
+            <h2 class="font-semibold text-2xl">Sign Up</h2>
+            <app-signup-form></app-signup-form>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
