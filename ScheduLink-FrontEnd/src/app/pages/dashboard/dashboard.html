@@ -1,3 +1,37 @@
 <app-nav-bar [signedIn]=true></app-nav-bar>
 
-<h2>User Dashboard</h2>
+<div class="p-6" *ngIf="user">
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold">Welcome, {{ user.name }}!</h2>
+    <button class="btn btn-outline btn-sm" (click)="logout()">Logout</button>
+  </div>
+
+  <h3 class="text-xl font-semibold mb-4">Your Schedule</h3>
+
+  <div *ngIf="courses.length === 0" class="text-gray-500">
+    No courses found. Upload a .ics file to see your schedule here.
+  </div>
+
+  <div class="overflow-x-auto" *ngIf="courses.length > 0">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Course Code</th>
+          <th>Section</th>
+          <th>Days</th>
+          <th>Start Time</th>
+          <th>End Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let course of courses">
+          <td>{{ course.courseCode }}</td>
+          <td>{{ course.section }}</td>
+          <td>{{ course.days }}</td>
+          <td>{{ course.startTime }}</td>
+          <td>{{ course.endTime }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

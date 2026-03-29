@@ -1,7 +1,36 @@
-version: '3.8'
+
 services:
   frontend:
     build: ./ScheduLink-FrontEnd
     container_name: angular-frontend
     ports:
       - "4200:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: schedulink
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: schedulink_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./ScheduLink-Backend
+    container_name: spring-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/schedulink_db
+      - SPRING_DATASOURCE_USERNAME=schedulink
+      - SPRING_DATASOURCE_PASSWORD=password
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
