@@ -4,7 +4,7 @@
   <input id="my-drawer-3" type="checkbox" class="drawer-toggle" />
   <div class="drawer-content relative flex flex-col p-14">
     <!-- Page content here -->
-    <h2 class="font-semibold text-3xl">Username's Schedule</h2>
+    <h2 class="font-semibold text-3xl">@{{ selectedUsername() }}'s Schedule</h2>
 
     <label for="my-drawer-3" class="glass btn btn-circle m-3 drawer-button md:hidden absolute left-0 top-0">
       >
@@ -14,12 +14,16 @@
     <label for="my-drawer-3" aria-label="close sidebar" class="drawer-overlay"></label>
     <ul class="menu bg-base-200 min-h-full w-80 p-4 gap-2">
       <!-- Sidebar content here -->
-      <li>
-        <button class="btn btn-outline rounded-box">@Username's Schedule</button>
-      </li>
-      <li>
-        <button class="btn btn-neutral rounded-box">@Username's Schedule</button>
-      </li>
+      @for (account of accounts(); track account.username) {
+        <li>
+          <button
+            class="btn rounded-box"
+            [ngClass]="selectedUsername() === account.username ? 'btn-neutral' : 'btn-outline'"
+            (click)="selectAccount(account.username)">
+            @{{ account.username }}'s Schedule
+          </button>
+        </li>
+      }
 
       <hr class="my-2 text-gray-300">
       <!-- <li>
@@ -35,9 +39,9 @@
             <div class="flex flex-row">
               <label class="input">
                 <input type="search" required placeholder="Username" />
-                
+
               </label>
-              <button class="btn btn-circle ml-1"> 
+              <button class="btn btn-circle ml-1">
                 <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                   <g
                     stroke-linejoin="round"
@@ -59,3 +63,4 @@
     </ul>
   </div>
 </div>
+
