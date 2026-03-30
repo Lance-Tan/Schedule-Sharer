@@ -4,7 +4,7 @@
   <input id="my-drawer-3" type="checkbox" class="drawer-toggle" />
   <div class="drawer-content relative flex flex-col p-14">
     <!-- Page content here -->
-    <h2 class="font-semibold text-3xl">@{{ selectedUsername() }}'s Schedule</h2>
+    <h2 class="font-semibold text-3xl">{{ getSelectedAccountName() }}</h2>
 
     <label for="my-drawer-3" class="glass btn btn-circle m-3 drawer-button md:hidden absolute left-0 top-0">
       >
@@ -19,7 +19,7 @@
           class="btn rounded-box"
           [ngClass]="selectedUsername() === currentUser().username ? 'btn-neutral' : 'btn-outline'"
           (click)="selectAccount(currentUser().username)">
-          @{{ currentUser().username }}'s Schedule
+          My Schedule
         </button>
       </li>
 
@@ -29,7 +29,7 @@
             class="btn rounded-box"
             [ngClass]="selectedUsername() === account.username ? 'btn-neutral' : 'btn-outline'"
             (click)="selectAccount(account.username)">
-            @{{ account.username }}'s Schedule
+            @{{ account.username }} ({{account.names[0]}})
           </button>
         </li>
       }

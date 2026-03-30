@@ -45,4 +45,13 @@ export class DashboardComponent {
   selectAccount(username: string) {
     this.selectedUsername.set(username);
   }
+
+  getSelectedAccountName(): string {
+    const selected = this.selectedUsername();
+    if (selected === this.currentUser().username) {
+      return 'My Schedule';
+    }
+    const account = this.accounts().find(a => a.username === selected);
+    return (account?.names[0] || '') + "'s Schedule";
+  }
 }
