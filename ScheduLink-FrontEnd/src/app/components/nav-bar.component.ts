@@ -1,6 +1,7 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-nav-bar',
@@ -17,7 +18,7 @@ import { RouterLink } from '@angular/router';
             </div>
 
             <div *ngIf="signedIn">
-                <button class="btn">Sign Out</button>
+                <button class="btn" (click)="logout()">Sign Out</button>
                 <a routerLink='/account-settings' class="ml-2 btn btn-primary">Profile</a>
             </div>
         </div>
@@ -28,4 +29,11 @@ import { RouterLink } from '@angular/router';
 
 export class NavBar {
     @Input() signedIn: boolean = false;
+
+    constructor(private router: Router) {}
+    
+    logout() {
+        localStorage.removeItem('user');
+        this.router.navigate(['/login']);
+    }
 }
