@@ -1,0 +1,18 @@
+package com.schedulink.backend.repository;
+
+import com.schedulink.backend.model.Friendship;
+import com.schedulink.backend.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
+
+    // Find a friendship between two users
+    @Query("SELECT f FROM Friendship f WHERE (f.user = :a AND f.friend = :b) OR (f.user = :b AND f.friend = :a)")
+    Optional<Friendship> findBetweenUsers(@Param("a") User a, @Param("b") User b);
+}

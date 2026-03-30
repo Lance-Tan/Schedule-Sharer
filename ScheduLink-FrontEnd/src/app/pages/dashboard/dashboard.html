@@ -6,6 +6,48 @@
     <!-- Page content here -->
     <h2 class="font-semibold text-3xl">{{ getSelectedAccountName() }}</h2>
 
+    <div *ngIf="curUsr()">
+        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4 mb-6">
+            <div class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-base-content/80">Replace from .ics</span>
+            <input
+                type="file"
+                class="file-input file-input-bordered w-full max-w-xs"
+                accept=".ics"
+                [disabled]="uploading"
+                (change)="onScheduleFileSelected($event)"
+            />
+            </div>
+            <p *ngIf="uploading" class="text-sm text-base-content/70">Uploading…</p>
+            <p *ngIf="uploadSuccess" class="text-sm text-success">{{ uploadSuccess }}</p>
+            <p *ngIf="uploadError" class="text-sm text-error">{{ uploadError }}</p>
+        </div>
+        <div *ngIf="scheduleRows.length === 0" class="text-gray-500">
+            No events found. Upload a .ics file here or at sign-up.
+        </div>
+
+        <div class="overflow-x-auto" *ngIf="scheduleRows.length > 0">
+            <table class="table table-zebra w-full">
+            <thead>
+                <tr>
+                <th>Event</th>
+                <th>Day</th>
+                <th>Start</th>
+                <th>End</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let row of scheduleRows">
+                <td>{{ row.eventName }}</td>
+                <td>{{ row.day }}</td>
+                <td>{{ row.startTime }}</td>
+                <td>{{ row.endTime }}</td>
+                </tr>
+            </tbody>
+            </table>
+        </div>
+    </div>
+
     <label for="my-drawer-3" class="glass btn btn-circle m-3 drawer-button md:hidden absolute left-0 top-0">
       >
     </label>
