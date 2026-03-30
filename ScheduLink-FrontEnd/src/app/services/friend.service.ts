@@ -13,8 +13,4 @@ export class FriendService {
   requestFriend(userId: number, friendId: number) {
     return this.http.post(`${this.baseUrl}/request?userId=${userId}&friendId=${friendId}`, {});
   }
-
-  compareSchedules(userId: number, friendId: number) {
-    return this.http.get(`${this.baseUrl}/compare/${userId}/${friendId}`);
-  }
 }
