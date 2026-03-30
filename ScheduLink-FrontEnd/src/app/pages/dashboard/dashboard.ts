@@ -16,6 +16,11 @@ interface Account {
   styleUrl: './dashboard.css'
 })
 export class DashboardComponent {
+  currentUser = signal<Account>({
+    username: 'current_user',
+    names: ['Current User']
+  });
+
   accounts = signal<Account[]>([
     {
       username: 'john_doe',
@@ -35,7 +40,7 @@ export class DashboardComponent {
     }
   ]);
 
-  selectedUsername = signal<string>('john_doe');
+  selectedUsername = signal<string>('current_user');
 
   selectAccount(username: string) {
     this.selectedUsername.set(username);

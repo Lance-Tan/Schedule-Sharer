@@ -14,6 +14,15 @@
     <label for="my-drawer-3" aria-label="close sidebar" class="drawer-overlay"></label>
     <ul class="menu bg-base-200 min-h-full w-80 p-4 gap-2">
       <!-- Sidebar content here -->
+      <li>
+        <button
+          class="btn rounded-box"
+          [ngClass]="selectedUsername() === currentUser().username ? 'btn-neutral' : 'btn-outline'"
+          (click)="selectAccount(currentUser().username)">
+          @{{ currentUser().username }}'s Schedule
+        </button>
+      </li>
+
       @for (account of accounts(); track account.username) {
         <li>
           <button
