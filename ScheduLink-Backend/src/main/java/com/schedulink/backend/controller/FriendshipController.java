@@ -1,5 +1,6 @@
 package com.schedulink.backend.controller;
 
+import com.schedulink.backend.dto.UserSummaryDto;
 import com.schedulink.backend.model.Friendship;
 import com.schedulink.backend.model.User;
 import com.schedulink.backend.repository.FriendshipRepository;
@@ -8,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -42,5 +45,25 @@ public class FriendshipController {
         f.setStatus("PENDING");
         friendshipRepository.save(f);
         return ResponseEntity.ok("Friend request sent");
+    }
+
+    // List accepted friends for a user (for dashboard sidebar)
+    @GetMapping("/list")
+    public ResponseEntity<?> listFriends(@RequestParam Long userId) {
+        Optional<User> meOpt = userRepository.findById(userId);
+        if (meOpt.isEmpty()) return ResponseEntity.badRequest().body("User not found");
+
+        List<Friendship> friendships = friendshipRepository.findAcceptedForUser(userId);
+        List<UserSummaryDto> body = new ArrayList<>();
+
+        for (Friendship f : friendships) {
+            User other = (f.getUser().getId().equals(userId)) ? f.getFriend() : f.getUser();
+            UserSummaryDto dto = new UserSummaryDto();
+            dto.setId(other.getId());
+            dto.setUsername(other.getUsername());
+            dto.setName(other.getName());
+            body.add(dto);
+        }
+        return ResponseEntity.ok(body);
     }
 }

@@ -22,8 +22,16 @@ public class AuthController {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body("Email already in use");
         }
+        if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Username is required");
+        }
+        String normalizedUsername = request.getUsername().trim();
+        if (userRepository.existsByUsername(normalizedUsername)) {
+            return ResponseEntity.badRequest().body("Username already in use");
+        }
         User newUser = new User();
         newUser.setName(request.getName());
+        newUser.setUsername(normalizedUsername);
         newUser.setEmail(request.getEmail());
         newUser.setPasswordHash(request.getPassword());
         
@@ -32,6 +40,7 @@ public class AuthController {
         AuthDto.AuthResponse response = new AuthDto.AuthResponse();
         response.setId(newUser.getId());
         response.setName(newUser.getName());
+        response.setUsername(newUser.getUsername());
         response.setEmail(newUser.getEmail());
         response.setToken("mock-jwt-token");
 
@@ -49,6 +58,7 @@ public class AuthController {
         AuthDto.AuthResponse response = new AuthDto.AuthResponse();
         response.setId(user.getId());
         response.setName(user.getName());
+        response.setUsername(user.getUsername());
         response.setEmail(user.getEmail());
         response.setToken("mock-jwt-token");
 
