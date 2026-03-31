@@ -59,19 +59,19 @@
       <li>
         <button
           class="btn rounded-box"
-          [ngClass]="selectedUsername() === currentUser().username ? 'btn-neutral' : 'btn-outline'"
-          (click)="selectAccount(currentUser().username)">
+          [ngClass]="selectedUserId() === user?.id ? 'btn-neutral' : 'btn-outline'"
+          (click)="selectAccount(user.id)">
           My Schedule
         </button>
       </li>
 
-      @for (account of accounts(); track account.username) {
+      @for (account of friends(); track account.id) {
         <li>
           <button
             class="btn rounded-box"
-            [ngClass]="selectedUsername() === account.username ? 'btn-neutral' : 'btn-outline'"
-            (click)="selectAccount(account.username)">
-            @{{ account.username }} ({{account.names[0]}})
+            [ngClass]="selectedUserId() === account.id ? 'btn-neutral' : 'btn-outline'"
+            (click)="selectAccount(account.id)">
+            @{{ account.username }} ({{account.name}})
           </button>
         </li>
       }
@@ -89,10 +89,17 @@
 
             <div class="flex flex-row">
               <label class="input">
-                <input type="search" required placeholder="Username" />
+                <input
+                  type="search"
+                  required
+                  placeholder="Username"
+                  [(ngModel)]="searchUsername"
+                  name="searchUsername"
+                  (keyup.enter)="onSearchUsers()"
+                />
 
               </label>
-              <button class="btn btn-circle ml-1">
+              <button class="btn btn-circle ml-1" type="button" (click)="onSearchUsers()">
                 <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                   <g
                     stroke-linejoin="round"
@@ -106,6 +113,22 @@
                   </g>
                 </svg>
               </button>
+            </div>
+
+            <p *ngIf="searchError" class="text-sm text-error mt-2">{{ searchError }}</p>
+
+            <div *ngIf="searchResults().length > 0" class="mt-2 flex flex-col gap-2">
+              @for (u of searchResults(); track u.id) {
+                <div class="flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-medium truncate">@{{ u.username }}</div>
+                    <div class="text-xs text-base-content/70 truncate">{{ u.name }}</div>
+                  </div>
+                  <button class="btn btn-sm btn-outline" type="button" (click)="sendFriendRequest(u.id)">
+                    Add
+                  </button>
+                </div>
+              }
             </div>
 
           </div>

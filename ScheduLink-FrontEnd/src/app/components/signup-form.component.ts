@@ -13,6 +13,9 @@ import { ScheduleService } from '../services/schedule.service';
         <label class="label font-semibold text-black">Name</label>
         <input type="text" class="input" placeholder="Full Name" [(ngModel)]="name" name="name" />
 
+        <label class="label font-semibold text-black">Username</label>
+        <input type="text" class="input" placeholder="Username" [(ngModel)]="username" name="username" />
+
         <label class="label font-semibold text-black">Email</label>
         <input type="email" class="input" placeholder="Email" [(ngModel)]="email" name="email" />
 
@@ -32,6 +35,7 @@ import { ScheduleService } from '../services/schedule.service';
 })
 export class SignupForm {
   name = '';
+  username = '';
   email = '';
   password = '';
   selectedFile: File | null = null;
@@ -52,7 +56,7 @@ export class SignupForm {
     this.errorMsg = '';
     this.successMsg = '';
 
-    this.authService.register({ name: this.name, email: this.email, password: this.password }).subscribe({
+    this.authService.register({ name: this.name, username: this.username, email: this.email, password: this.password }).subscribe({
       next: (res: any) => {
         localStorage.setItem('user', JSON.stringify(res));
 

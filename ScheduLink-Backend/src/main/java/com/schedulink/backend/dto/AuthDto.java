@@ -13,6 +13,7 @@ public class AuthDto {
     @Data
     public static class RegisterRequest {
         private String name;
+        private String username;
         private String email;
         private String password;
     }
@@ -21,6 +22,7 @@ public class AuthDto {
     public static class AuthResponse {
         private Long id;
         private String name;
+        private String username;
         private String email;
         private String token;
     }

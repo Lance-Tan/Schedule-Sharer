@@ -13,4 +13,8 @@ export class FriendService {
   requestFriend(userId: number, friendId: number) {
     return this.http.post(`${this.baseUrl}/request?userId=${userId}&friendId=${friendId}`, {});
   }
+
+  listFriends(userId: number) {
+    return this.http.get(`${this.baseUrl}/list?userId=${userId}`);
+  }
 }
