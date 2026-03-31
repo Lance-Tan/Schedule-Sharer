@@ -57,10 +57,9 @@ export class NavBar implements OnInit, OnDestroy {
     updateProfileButton() {
         const currentUrl = this.router.url;
         
-        // Check if we're on account-settings page
         if (currentUrl.includes('/account-settings')) {
             this.profileButtonText = 'Dashboard';
-            this.profileButtonLink = '/dashboard'; // Update this to your actual dashboard route
+            this.profileButtonLink = '/dashboard';
         } else {
             this.profileButtonText = 'Profile';
             this.profileButtonLink = '/account-settings';
