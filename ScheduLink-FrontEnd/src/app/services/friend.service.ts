@@ -11,7 +11,7 @@ export class FriendService {
   constructor(private http: HttpClient) { }
 
   requestFriend(userId: number, friendId: number) {
-    return this.http.post(`${this.baseUrl}/request?userId=${userId}&friendId=${friendId}`, {});
+    return this.http.post(`${this.baseUrl}/request?userId=${userId}&friendId=${friendId}`, {}, { responseType: 'text' });
   }
 
   listFriends(userId: number) {

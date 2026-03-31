@@ -1,11 +1,12 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { Router } from '@angular/router';
+import { RouterLink, Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-nav-bar',
-    imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink],
   template: `
     <div class="navbar bg-base-100 shadow-sm px-4">
         <div class="navbar-start">
@@ -17,23 +18,62 @@ import { Router } from '@angular/router';
                 <a routerLink='/login' class="btn btn-soft btn-primary">Log In or Sign Up</a>
             </div>
 
-            <div *ngIf="signedIn">
-                <button class="btn" (click)="logout()">Sign Out</button>
-                <a routerLink='/account-settings' class="ml-2 btn btn-primary">Profile</a>
+            <div *ngIf="signedIn" class="flex gap-2">
+                <button class="btn btn-outline" (click)="logout()">Sign Out</button>
+                
+                <!-- Dynamic button based on current route -->
+                <a 
+                    [routerLink]="profileButtonLink" 
+                    class="ml-2 btn btn-primary"
+                >
+                    {{ profileButtonText }}
+                </a>
             </div>
         </div>
     </div>
   `,
-  styles: '',
+  styles: ''
 })
 
-export class NavBar {
+export class NavBar implements OnInit, OnDestroy {
     @Input() signedIn: boolean = false;
+    profileButtonText: string = 'Profile';
+    profileButtonLink: string = '/account-settings';
+    private routerSubscription!: Subscription;
 
     constructor(private router: Router) {}
+    
+    ngOnInit() {
+        this.updateProfileButton();
+        
+        // Listen to route changes
+        this.routerSubscription = this.router.events
+            .pipe(filter(event => event instanceof NavigationEnd))
+            .subscribe(() => {
+                this.updateProfileButton();
+            });
+    }
+    
+    updateProfileButton() {
+        const currentUrl = this.router.url;
+        
+        if (currentUrl.includes('/account-settings')) {
+            this.profileButtonText = 'Dashboard';
+            this.profileButtonLink = '/dashboard';
+        } else {
+            this.profileButtonText = 'Profile';
+            this.profileButtonLink = '/account-settings';
+        }
+    }
     
     logout() {
         localStorage.removeItem('user');
         this.router.navigate(['/login']);
+    }
+    
+    ngOnDestroy() {
+        if (this.routerSubscription) {
+            this.routerSubscription.unsubscribe();
+        }
     }
 }

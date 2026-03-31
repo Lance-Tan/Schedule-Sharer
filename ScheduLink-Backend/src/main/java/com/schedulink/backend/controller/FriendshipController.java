@@ -36,15 +36,16 @@ public class FriendshipController {
         if (existing.isPresent()) {
             existing.get().setStatus("ACCEPTED");
             friendshipRepository.save(existing.get());
-            return ResponseEntity.ok("Friend request accepted");
+            return ResponseEntity.ok("Friend connection is active");
         }
 
         Friendship f = new Friendship();
         f.setUser(u1.get());
         f.setFriend(u2.get());
-        f.setStatus("PENDING");
+        // Product choice: every request is auto-accepted immediately.
+        f.setStatus("ACCEPTED");
         friendshipRepository.save(f);
-        return ResponseEntity.ok("Friend request sent");
+        return ResponseEntity.ok("Friend connection is active");
     }
 
     // List accepted friends for a user (for dashboard sidebar)
