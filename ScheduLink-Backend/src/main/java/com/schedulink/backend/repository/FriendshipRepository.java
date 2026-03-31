@@ -19,4 +19,9 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
 
     @Query("SELECT f FROM Friendship f WHERE (f.user.id = :userId OR f.friend.id = :userId) AND f.status = 'ACCEPTED'")
     List<Friendship> findAcceptedForUser(@Param("userId") Long userId);
+
+    @Query("SELECT f FROM Friendship f WHERE f.friend.id = :userId AND f.status = 'PENDING'")
+    List<Friendship> findIncomingPendingForUser(@Param("userId") Long userId);
+
+    Optional<Friendship> findByIdAndFriend_Id(Long id, Long friendId);
 }
