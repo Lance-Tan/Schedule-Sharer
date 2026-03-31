@@ -4,7 +4,7 @@ import { RouterOutlet, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { NavBar } from '../../components/nav-bar.component';
-import { ScheduleService } from '../../services/schedule.service';
+import { ScheduleComponent } from '../../components/schedule.component';
 import { FriendService } from '../../services/friend.service';
 import { UserService } from '../../services/user.service';
 
@@ -16,7 +16,13 @@ interface Account {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterOutlet, NavBar, CommonModule, FormsModule],
+  imports: [
+    RouterOutlet, 
+    NavBar, 
+    CommonModule, 
+    FormsModule,
+    ScheduleComponent
+  ],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css'
 })
@@ -37,7 +43,6 @@ export class DashboardComponent implements OnInit {
   searchSuccess = '';
 
   constructor(
-    private scheduleService: ScheduleService,
     private friendService: FriendService,
     private userService: UserService,
     private router: Router
@@ -52,41 +57,6 @@ export class DashboardComponent implements OnInit {
     this.user = JSON.parse(stored);
     this.selectedUserId.set(this.user?.id ?? null);
     this.loadFriends();
-    if (this.selectedUserId() != null) {
-      this.loadSchedule(this.selectedUserId()!);
-    }
-  }
-
-  loadSchedule(userId: number) {
-    this.scheduleService.getSchedule(userId).subscribe({
-      next: (res: any) => {
-        const events = (res ?? []) as { eventName?: string; timeslots?: { day?: string; startTime?: string; endTime?: string }[] }[];
-        this.scheduleRows = [];
-        for (const ev of events) {
-          const slots = ev.timeslots || [];
-          if (slots.length === 0) {
-            this.scheduleRows.push({
-              eventName: ev.eventName ?? '',
-              day: '—',
-              startTime: '—',
-              endTime: '—',
-            });
-            continue;
-          }
-          for (const t of slots) {
-            this.scheduleRows.push({
-              eventName: ev.eventName ?? '',
-              day: t.day ?? '',
-              startTime: t.startTime ?? '',
-              endTime: t.endTime ?? '',
-            });
-          }
-        }
-      },
-      error: () => {
-        console.error('Failed to load schedule');
-      }
-    });
   }
 
   loadFriends() {
@@ -111,44 +81,12 @@ export class DashboardComponent implements OnInit {
     this.router.navigate(['/login']);
   }
 
-  onScheduleFileSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file || !this.user) {
-      return;
-    }
-
-    this.uploadError = '';
-    this.uploadSuccess = '';
-    this.uploading = true;
-
-    this.scheduleService.uploadSchedule(this.user.id, file).subscribe({
-      next: () => {
-        this.uploading = false;
-        this.uploadSuccess = 'Schedule updated.';
-        if (this.selectedUserId() != null) {
-          this.loadSchedule(this.selectedUserId()!);
-        }
-        input.value = '';
-      },
-      error: (err: { error?: { error?: string; message?: string } | string }) => {
-        this.uploading = false;
-        const body = err?.error;
-        if (typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string') {
-          this.uploadError = body.error;
-        } else if (typeof body === 'object' && body !== null && 'message' in body && typeof body.message === 'string') {
-          this.uploadError = body.message;
-        } else {
-          this.uploadError = 'Upload failed. Try again.';
-        }
-        input.value = '';
-      },
-    });
-  }
-
   selectAccount(userId: number) {
     this.selectedUserId.set(userId);
-    this.loadSchedule(userId);
+  }
+
+  onScheduleUpdated() {
+    console.log('Schedule was updated');
   }
 
   getSelectedAccountName(): string {
@@ -160,7 +98,7 @@ export class DashboardComponent implements OnInit {
     return name ? `${name}'s Schedule` : "Friend's Schedule";
   }
 
-  curUsr(): Boolean {
+  curUsr(): boolean {
     const selectedId = this.selectedUserId();
     return selectedId != null && selectedId === this.user?.id;
   }

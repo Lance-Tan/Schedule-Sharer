@@ -2,60 +2,25 @@
 
 <div class="drawer md:drawer-open">
   <input id="my-drawer-3" type="checkbox" class="drawer-toggle" />
+  
   <div class="drawer-content relative flex flex-col p-14">
-    <!-- Page content here -->
     <h2 class="font-semibold text-3xl">{{ getSelectedAccountName() }}</h2>
 
-    <div *ngIf="curUsr()">
-        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4 mb-6">
-            <div class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-base-content/80">Replace from .ics</span>
-            <input
-                type="file"
-                class="file-input file-input-bordered w-full max-w-xs"
-                accept=".ics"
-                [disabled]="uploading"
-                (change)="onScheduleFileSelected($event)"
-            />
-            </div>
-            <p *ngIf="uploading" class="text-sm text-base-content/70">Uploading…</p>
-            <p *ngIf="uploadSuccess" class="text-sm text-success">{{ uploadSuccess }}</p>
-            <p *ngIf="uploadError" class="text-sm text-error">{{ uploadError }}</p>
-        </div>
-        <div *ngIf="scheduleRows.length === 0" class="text-gray-500">
-            No events found. Upload a .ics file here or at sign-up.
-        </div>
-
-        <div class="overflow-x-auto" *ngIf="scheduleRows.length > 0">
-            <table class="table table-zebra w-full">
-            <thead>
-                <tr>
-                <th>Event</th>
-                <th>Day</th>
-                <th>Start</th>
-                <th>End</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr *ngFor="let row of scheduleRows">
-                <td>{{ row.eventName }}</td>
-                <td>{{ row.day }}</td>
-                <td>{{ row.startTime }}</td>
-                <td>{{ row.endTime }}</td>
-                </tr>
-            </tbody>
-            </table>
-        </div>
-    </div>
+    <app-schedule 
+      [userId]="selectedUserId()"
+      [isOwnSchedule]="curUsr()"
+      (scheduleUpdated)="onScheduleUpdated()">
+    </app-schedule>
 
     <label for="my-drawer-3" class="glass btn btn-circle m-3 drawer-button md:hidden absolute left-0 top-0">
       >
     </label>
   </div>
+  
   <div class="drawer-side">
     <label for="my-drawer-3" aria-label="close sidebar" class="drawer-overlay"></label>
+    
     <ul class="menu bg-base-200 min-h-full w-80 p-4 gap-2">
-      <!-- Sidebar content here -->
       <li>
         <button
           class="btn rounded-box"
@@ -77,9 +42,6 @@
       }
 
       <hr class="my-2 text-gray-300">
-      <!-- <li>
-        <button class="btn btn-primary">Connect a New Schedule</button>
-      </li> -->
 
       <li>
         <div class="dropdown p-0">
@@ -97,7 +59,6 @@
                   name="searchUsername"
                   (keyup.enter)="onSearchUsers()"
                 />
-
               </label>
               <button class="btn btn-circle ml-1" type="button" (click)="onSearchUsers()">
                 <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -131,11 +92,9 @@
                 </div>
               }
             </div>
-
           </div>
         </div>
       </li>
     </ul>
   </div>
 </div>
-
