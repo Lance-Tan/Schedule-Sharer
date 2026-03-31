@@ -34,6 +34,7 @@ export class DashboardComponent implements OnInit {
   searchUsername = '';
   searchResults = signal<Account[]>([]);
   searchError = '';
+  searchSuccess = '';
 
   constructor(
     private scheduleService: ScheduleService,
@@ -166,6 +167,7 @@ export class DashboardComponent implements OnInit {
 
   onSearchUsers() {
     this.searchError = '';
+    this.searchSuccess = '';
     const q = (this.searchUsername ?? '').trim();
     if (!q) {
       this.searchResults.set([]);
@@ -190,12 +192,17 @@ export class DashboardComponent implements OnInit {
 
   sendFriendRequest(friendId: number) {
     if (!this.user?.id) return;
+    this.searchError = '';
+    this.searchSuccess = '';
     this.friendService.requestFriend(this.user.id, friendId).subscribe({
-      next: () => {
+      next: (res: any) => {
+        const msg = typeof res === 'string' && res.trim() ? res : 'Request sent.';
+        this.searchSuccess = msg;
         this.loadFriends();
       },
       error: (err: any) => {
         const body = err?.error;
+        this.searchSuccess = '';
         if (typeof body === 'string' && body.trim()) {
           this.searchError = body;
         } else if (body && typeof body === 'object' && typeof body.message === 'string') {

@@ -116,6 +116,7 @@
             </div>
 
             <p *ngIf="searchError" class="text-sm text-error mt-2">{{ searchError }}</p>
+            <p *ngIf="searchSuccess" class="text-sm text-success mt-2">{{ searchSuccess }}</p>
 
             <div *ngIf="searchResults().length > 0" class="mt-2 flex flex-col gap-2">
               @for (u of searchResults(); track u.id) {
