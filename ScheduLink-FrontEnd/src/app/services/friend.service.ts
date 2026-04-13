@@ -17,4 +17,16 @@ export class FriendService {
   listFriends(userId: number) {
     return this.http.get(`${this.baseUrl}/list?userId=${userId}`);
   }
+
+  getIncomingRequests(userId: number) {
+    return this.http.get(`${this.baseUrl}/requests/incoming?userId=${userId}`);
+  }
+
+  acceptRequest(requestId: number, userId: number) {
+    return this.http.post(`${this.baseUrl}/requests/${requestId}/accept?userId=${userId}`, {}, { responseType: 'text' });
+  }
+
+  denyRequest(requestId: number, userId: number) {
+    return this.http.post(`${this.baseUrl}/requests/${requestId}/deny?userId=${userId}`, {}, { responseType: 'text' });
+  }
 }

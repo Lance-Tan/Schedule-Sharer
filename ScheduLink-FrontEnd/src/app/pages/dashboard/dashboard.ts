@@ -1,4 +1,4 @@
-import { Component, signal, OnInit} from '@angular/core';
+import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,13 @@ interface Account {
   name: string;
 }
 
+interface IncomingRequest {
+  friendshipId: number;
+  fromUserId: number;
+  fromUsername: string;
+  fromName: string;
+}
+
 @Component({
   selector: 'app-dashboard',
   imports: [
@@ -26,7 +33,7 @@ interface Account {
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css'
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   user: any = null;
   /** Flat rows for the table: one row per timeslot. */
   scheduleRows: { eventName: string; day: string; startTime: string; endTime: string }[] = [];
@@ -41,6 +48,9 @@ export class DashboardComponent implements OnInit {
   searchResults = signal<Account[]>([]);
   searchError = '';
   searchSuccess = '';
+  incomingRequests = signal<IncomingRequest[]>([]);
+  requestActionMessage = '';
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private friendService: FriendService,
@@ -57,6 +67,24 @@ export class DashboardComponent implements OnInit {
     this.user = JSON.parse(stored);
     this.selectedUserId.set(this.user?.id ?? null);
     this.loadFriends();
+    this.loadIncomingRequests();
+    this.startPolling();
+  }
+
+  ngOnDestroy() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  startPolling() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = setInterval(() => {
+      if (!this.user?.id) return;
+      this.loadFriends();
+      this.loadIncomingRequests();
+    }, 5000);
   }
 
   loadFriends() {
@@ -72,6 +100,28 @@ export class DashboardComponent implements OnInit {
       },
       error: () => {
         this.friends.set([]);
+      }
+    });
+  }
+
+  loadIncomingRequests() {
+    if (!this.user?.id) return;
+    this.friendService.getIncomingRequests(this.user.id).subscribe({
+      next: (res: any) => {
+        const rows = (res ?? []) as any[];
+        this.incomingRequests.set(
+          rows
+            .filter(r => r && typeof r.friendshipId === 'number' && typeof r.fromUserId === 'number')
+            .map(r => ({
+              friendshipId: r.friendshipId,
+              fromUserId: r.fromUserId,
+              fromUsername: r.fromUsername ?? '',
+              fromName: r.fromName ?? ''
+            }))
+        );
+      },
+      error: () => {
+        this.incomingRequests.set([]);
       }
     });
   }
@@ -137,6 +187,7 @@ export class DashboardComponent implements OnInit {
         const msg = typeof res === 'string' && res.trim() ? res : 'Request sent.';
         this.searchSuccess = msg;
         this.loadFriends();
+        this.loadIncomingRequests();
       },
       error: (err: any) => {
         const body = err?.error;
@@ -148,6 +199,35 @@ export class DashboardComponent implements OnInit {
         } else {
           this.searchError = 'Could not send request.';
         }
+      }
+    });
+  }
+
+  acceptRequest(requestId: number) {
+    if (!this.user?.id) return;
+    this.requestActionMessage = '';
+    this.friendService.acceptRequest(requestId, this.user.id).subscribe({
+      next: () => {
+        this.requestActionMessage = 'Request accepted.';
+        this.loadIncomingRequests();
+        this.loadFriends();
+      },
+      error: () => {
+        this.requestActionMessage = 'Could not accept request.';
+      }
+    });
+  }
+
+  denyRequest(requestId: number) {
+    if (!this.user?.id) return;
+    this.requestActionMessage = '';
+    this.friendService.denyRequest(requestId, this.user.id).subscribe({
+      next: () => {
+        this.requestActionMessage = 'Request denied.';
+        this.loadIncomingRequests();
+      },
+      error: () => {
+        this.requestActionMessage = 'Could not deny request.';
       }
     });
   }

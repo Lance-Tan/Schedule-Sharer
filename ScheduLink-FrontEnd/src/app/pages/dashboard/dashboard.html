@@ -43,6 +43,24 @@
 
       <hr class="my-2 text-gray-300">
 
+      <li class="mt-1">
+        <div class="font-semibold text-base-content/80">Incoming Requests</div>
+      </li>
+      <li *ngIf="incomingRequests().length === 0" class="text-sm text-base-content/60">
+        No pending requests
+      </li>
+      @for (req of incomingRequests(); track req.friendshipId) {
+        <li class="rounded-box bg-base-100 p-2">
+          <div class="text-sm font-medium truncate">@{{ req.fromUsername }}</div>
+          <div class="text-xs text-base-content/70 truncate mb-2">{{ req.fromName }}</div>
+          <div class="flex gap-2">
+            <button class="btn btn-xs btn-success" type="button" (click)="acceptRequest(req.friendshipId)">Accept</button>
+            <button class="btn btn-xs btn-outline" type="button" (click)="denyRequest(req.friendshipId)">Deny</button>
+          </div>
+        </li>
+      }
+      <li *ngIf="requestActionMessage" class="text-xs text-base-content/70">{{ requestActionMessage }}</li>
+
       <li>
         <div class="dropdown p-0">
           <div tabindex="0" role="button" class="btn btn-primary w-full rounded-box">Connect a New Schedule</div>
