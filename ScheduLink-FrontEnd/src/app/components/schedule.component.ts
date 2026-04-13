@@ -13,7 +13,7 @@ import { ScheduleService } from '../services/schedule.service';
       <div *ngIf="isOwnSchedule" class="upload-section">
         <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4 mb-6">
           <div class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-base-content/80">Replace from .ics</span>
+            <span class="text-sm font-medium text-base-content/80">Import .ics into this schedule</span>
             <input
               type="file"
               class="file-input file-input-bordered w-full max-w-xs"
@@ -28,12 +28,14 @@ import { ScheduleService } from '../services/schedule.service';
         </div>
       </div>
 
+      <p *ngIf="loadError" class="text-sm text-error mb-4">{{ loadError }}</p>
+
       <!-- Schedule Display -->
-      <div *ngIf="scheduleRows.length === 0" class="text-gray-500">
-        No events found. {{ isOwnSchedule ? 'Upload a .ics file here or at sign-up.' : 'This friend has no schedule yet.' }}
+      <div *ngIf="!loadError && scheduleRows.length === 0" class="text-gray-500">
+        No events found. {{ isOwnSchedule ? 'Upload a .ics file or pick another schedule in the sidebar.' : 'This friend has no active schedule yet.' }}
       </div>
 
-      <div class="overflow-x-auto" *ngIf="scheduleRows.length > 0">
+      <div class="overflow-x-auto" *ngIf="!loadError && scheduleRows.length > 0">
         <table class="table table-zebra w-full">
           <thead>
             <tr>
@@ -66,13 +68,16 @@ import { ScheduleService } from '../services/schedule.service';
 })
 export class ScheduleComponent implements OnInit, OnChanges {
   @Input() userId: number | null = null;
+  @Input() viewerUserId: number | null = null;
   @Input() isOwnSchedule: boolean = false;
+  @Input() scheduleId: number | null = null;
   @Output() scheduleUpdated = new EventEmitter<void>();
 
   scheduleRows: { eventName: string; day: string; startTime: string; endTime: string }[] = [];
   uploading = false;
   uploadError = '';
   uploadSuccess = '';
+  loadError = '';
 
   constructor(private scheduleService: ScheduleService) {}
 
@@ -83,15 +88,22 @@ export class ScheduleComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['userId'] && this.userId) {
+    if ((changes['userId'] || changes['scheduleId'] || changes['isOwnSchedule'] || changes['viewerUserId']) && this.userId) {
       this.loadSchedule();
     }
   }
 
   loadSchedule() {
     if (!this.userId) return;
-    
-    this.scheduleService.getSchedule(this.userId).subscribe({
+
+    this.loadError = '';
+    const viewer = this.viewerUserId ?? undefined;
+    const sid = this.isOwnSchedule ? (this.scheduleId ?? undefined) : undefined;
+
+    this.scheduleService.getSchedule(this.userId, {
+      viewerId: viewer,
+      scheduleId: sid
+    }).subscribe({
       next: (res: any) => {
         const events = (res ?? []) as { eventName?: string; timeslots?: { day?: string; startTime?: string; endTime?: string }[] }[];
         this.scheduleRows = [];
@@ -119,6 +131,8 @@ export class ScheduleComponent implements OnInit, OnChanges {
       error: (err) => {
         console.error('Failed to load schedule:', err);
         this.scheduleRows = [];
+        const msg = err?.error?.error;
+        this.loadError = typeof msg === 'string' ? msg : 'Could not load schedule.';
       }
     });
   }
@@ -134,7 +148,9 @@ export class ScheduleComponent implements OnInit, OnChanges {
     this.uploadSuccess = '';
     this.uploading = true;
 
-    this.scheduleService.uploadSchedule(this.userId, file).subscribe({
+    const sid = this.scheduleId;
+
+    this.scheduleService.uploadSchedule(this.userId, file, sid).subscribe({
       next: () => {
         this.uploading = false;
         this.uploadSuccess = 'Schedule updated.';
@@ -144,8 +160,13 @@ export class ScheduleComponent implements OnInit, OnChanges {
       },
       error: (err: any) => {
         this.uploading = false;
-        const errorMessage = err?.error?.message || err?.message || 'Upload failed. Try again.';
-        this.uploadError = errorMessage;
+        const body = err?.error;
+        const errorMessage =
+          (typeof body === 'object' && body?.error) ||
+          body?.message ||
+          err?.message ||
+          'Upload failed. Try again.';
+        this.uploadError = typeof errorMessage === 'string' ? errorMessage : 'Upload failed. Try again.';
         console.error('Upload error:', err);
         input.value = '';
       },
