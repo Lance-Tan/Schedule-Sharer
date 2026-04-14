@@ -222,6 +222,7 @@ export class ScheduleComponent implements OnInit, OnChanges {
   @Input() viewerUserId: number | null = null;
   @Input() isOwnSchedule: boolean = false;
   @Input() scheduleId: number | null = null;
+  @Input() externalRows: ScheduleRow[] | null = null;
   @Output() scheduleUpdated = new EventEmitter<void>();
 
   scheduleRows: ScheduleRow[] = [];
@@ -240,14 +241,26 @@ export class ScheduleComponent implements OnInit, OnChanges {
     if (this.userId) this.loadSchedule();
   }
 
-  ngOnChanges(changes: SimpleChanges) {
-    if ((changes['userId'] || changes['scheduleId'] || changes['isOwnSchedule'] || changes['viewerUserId']) && this.userId) {
-      this.loadSchedule();
-    }
+ngOnChanges(changes: SimpleChanges) {
+  const needsReload = 
+    changes['userId'] || 
+    changes['scheduleId'] || 
+    changes['isOwnSchedule'] || 
+    changes['viewerUserId'] || 
+    changes['externalRows'];
+
+  if (needsReload && (this.userId || this.externalRows)) {
+    this.loadSchedule();
   }
+}
 
   // Unchanged from your original
   loadSchedule() {
+    if (this.externalRows && this.externalRows.length > 0) {
+      this.scheduleRows = [...this.externalRows];
+      this.buildGrid();
+      return;
+    }
     if (!this.userId) return;
 
     this.loadError = '';

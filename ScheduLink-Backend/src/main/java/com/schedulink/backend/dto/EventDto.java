@@ -1,7 +1,6 @@
 package com.schedulink.backend.dto;
 
 import lombok.Data;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,5 +8,6 @@ import java.util.List;
 public class EventDto {
     private Long eventId;
     private String eventName;
+    private String ownerName;
     private List<TimeslotDto> timeslots = new ArrayList<>();
 }

@@ -64,6 +64,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   friendsFilterQuery = '';
   mySchedulesSectionOpen = signal(true);
   incomingSectionOpen = signal(true);
+  isCompareMode = signal<boolean>(false);
 
   constructor(
     private friendService: FriendService,
@@ -272,11 +273,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   selectAccount(userId: number) {
-    this.selectedUserId.set(userId);
-    if (userId === this.user?.id) {
-      this.loadSchedules();
-    }
+  this.isCompareMode.set(false);
+  this.scheduleRows = []; 
+  this.selectedUserId.set(userId);
+  this.sidebarOpen.set(false);
+  if (userId === this.user?.id) {
+    this.loadSchedules();
   }
+}
 
   onScheduleUpdated() {
     this.loadSchedules();
@@ -384,4 +388,43 @@ export class DashboardComponent implements OnInit, OnDestroy {
       }
     });
   }
+
+  compareWithFriend(friendId: number) {
+  if (!this.user?.id) return;
+
+  this.scheduleListError = '';
+  
+  this.scheduleService.compareSchedules(this.user.id, friendId).subscribe({
+    next: (res: any) => {
+      const combined = res.combinedSchedule || [];
+      const newRows: any[] = [];
+
+      combined.forEach((event: any) => {
+        event.timeslots.forEach((slot: any) => {
+          newRows.push({
+            eventName: `${event.eventName} (${event.ownerName})`,
+            day: slot.day,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            owner: event.ownerName
+          });
+        });
+      });
+
+      this.scheduleRows = newRows;
+      this.isCompareMode.set(true);
+      this.selectedUserId.set(friendId);
+      this.sidebarOpen.set(false);
+    },
+    error: (err) => {
+      this.scheduleListError = 'Could not compare schedules. Make sure both users have active schedules.';
+      console.error('Comparison error:', err);
+    }
+  });
+}
+
+  overrideSelectAccount(userId: number) {
+    this.isCompareMode.set(false);
+    this.selectAccount(userId);
+}
 }

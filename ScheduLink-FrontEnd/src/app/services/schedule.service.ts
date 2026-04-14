@@ -69,4 +69,12 @@ export class ScheduleService {
     }
     return this.http.get(`${this.baseUrl}/${targetUserId}`, { params });
   }
+
+  compareSchedules(userId: number, friendId: number) {
+    const params = new HttpParams()
+      .set('userId', String(userId))
+      .set('friendId', String(friendId));
+
+    return this.http.get<any>(`${this.baseUrl}/compare`, { params });
+  }
 }
