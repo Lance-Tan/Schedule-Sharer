@@ -12,8 +12,11 @@ import java.util.List;
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-    // Find events with timeslots by user ID
     @EntityGraph(attributePaths = "timeslots")
     @Query("SELECT e FROM Event e WHERE e.schedule.user.id = :userId ORDER BY e.id")
     List<Event> findWithTimeslotsByUserId(@Param("userId") Long userId);
+
+    @EntityGraph(attributePaths = "timeslots")
+    @Query("SELECT e FROM Event e WHERE e.schedule.id = :scheduleId ORDER BY e.id")
+    List<Event> findWithTimeslotsByScheduleId(@Param("scheduleId") Long scheduleId);
 }

@@ -1,12 +1,13 @@
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { NavBar } from '../../components/nav-bar.component';
 import { ScheduleComponent } from '../../components/schedule.component';
 import { FriendService } from '../../services/friend.service';
 import { UserService } from '../../services/user.service';
+import { ScheduleService, ScheduleSummary } from '../../services/schedule.service';
 
 interface Account {
   id: number;
@@ -24,9 +25,8 @@ interface IncomingRequest {
 @Component({
   selector: 'app-dashboard',
   imports: [
-    RouterOutlet, 
-    NavBar, 
-    CommonModule, 
+    NavBar,
+    CommonModule,
     FormsModule,
     ScheduleComponent
   ],
@@ -52,9 +52,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
   requestActionMessage = '';
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  schedules = signal<ScheduleSummary[]>([]);
+  selectedScheduleId = signal<number | null>(null);
+  newScheduleName = '';
+  creatingSchedule = false;
+  scheduleListError = '';
+  renamingScheduleId = signal<number | null>(null);
+  renameDraft = '';
+  sidebarOpen = signal(true);
+  friendsSectionOpen = signal(true);
+  mySchedulesSectionOpen = signal(true);
+  incomingSectionOpen = signal(true);
+
   constructor(
     private friendService: FriendService,
     private userService: UserService,
+    private scheduleService: ScheduleService,
     private router: Router
   ) {}
 
@@ -68,6 +81,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.selectedUserId.set(this.user?.id ?? null);
     this.loadFriends();
     this.loadIncomingRequests();
+    this.loadSchedules();
     this.startPolling();
   }
 
@@ -76,6 +90,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+  }
+
+  toggleSidebar() {
+    this.sidebarOpen.update((v) => !v);
+  }
+
+  toggleFriendsSection() {
+    this.friendsSectionOpen.update((v) => !v);
+  }
+
+  toggleMySchedulesSection() {
+    this.mySchedulesSectionOpen.update((v) => !v);
+  }
+
+  toggleIncomingSection() {
+    this.incomingSectionOpen.update((v) => !v);
+  }
+
+  onDrawerCheckboxChange(checked: boolean) {
+    this.sidebarOpen.set(checked);
   }
 
   startPolling() {
@@ -100,6 +134,108 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.friends.set([]);
+      }
+    });
+  }
+
+  loadSchedules() {
+    if (!this.user?.id) return;
+    this.scheduleListError = '';
+    this.scheduleService.listSchedules(this.user.id).subscribe({
+      next: (rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        this.schedules.set(list);
+        const ids = new Set(list.map((s) => s.scheduleId));
+        const cur = this.selectedScheduleId();
+        if (cur === null || !ids.has(cur)) {
+          const active = list.find((s) => s.active);
+          this.selectedScheduleId.set(active?.scheduleId ?? list[0]?.scheduleId ?? null);
+        }
+      },
+      error: () => {
+        this.schedules.set([]);
+        this.scheduleListError = 'Could not load schedules.';
+      }
+    });
+  }
+
+  selectSchedule(scheduleId: number) {
+    this.selectedScheduleId.set(scheduleId);
+  }
+
+  startRename(s: ScheduleSummary) {
+    this.renamingScheduleId.set(s.scheduleId);
+    this.renameDraft = s.name;
+    this.scheduleListError = '';
+  }
+
+  cancelRename() {
+    this.renamingScheduleId.set(null);
+    this.renameDraft = '';
+    this.scheduleListError = '';
+  }
+
+  saveRename() {
+    const sid = this.renamingScheduleId();
+    if (sid == null || !this.user?.id) return;
+    const name = (this.renameDraft ?? '').trim();
+    if (!name) {
+      this.scheduleListError = 'Enter a name.';
+      return;
+    }
+    this.scheduleListError = '';
+    this.scheduleService.renameSchedule(sid, this.user.id, name).subscribe({
+      next: () => {
+        this.cancelRename();
+        this.loadSchedules();
+      },
+      error: () => {
+        this.scheduleListError = 'Could not rename schedule.';
+      }
+    });
+  }
+
+  setActiveScheduleId(scheduleId: number) {
+    if (!this.user?.id) return;
+    this.scheduleListError = '';
+    this.scheduleService.setActiveSchedule(this.user.id, scheduleId).subscribe({
+      next: () => this.loadSchedules(),
+      error: () => {
+        this.scheduleListError = 'Could not update active schedule.';
+      }
+    });
+  }
+
+  deleteScheduleById(scheduleId: number) {
+    if (!this.user?.id) return;
+    if (!confirm('Delete this schedule and all its events?')) return;
+    this.scheduleListError = '';
+    this.scheduleService.deleteSchedule(scheduleId, this.user.id).subscribe({
+      next: () => {
+        this.loadSchedules();
+      },
+      error: () => {
+        this.scheduleListError = 'Could not delete schedule.';
+      }
+    });
+  }
+
+  createEmptySchedule() {
+    if (!this.user?.id) return;
+    const raw = (this.newScheduleName ?? '').trim();
+    const name = raw || 'New schedule';
+    this.creatingSchedule = true;
+    this.scheduleListError = '';
+    this.scheduleService.createSchedule(this.user.id, name).subscribe({
+      next: (res) => {
+        this.creatingSchedule = false;
+        this.newScheduleName = '';
+        this.selectedScheduleId.set(res.scheduleId);
+        this.loadSchedules();
+      },
+      error: () => {
+        this.creatingSchedule = false;
+        this.scheduleListError = 'Could not create schedule.';
       }
     });
   }
@@ -133,10 +269,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   selectAccount(userId: number) {
     this.selectedUserId.set(userId);
+    if (userId === this.user?.id) {
+      this.loadSchedules();
+    }
   }
 
   onScheduleUpdated() {
-    console.log('Schedule was updated');
+    this.loadSchedules();
   }
 
   getSelectedAccountName(): string {

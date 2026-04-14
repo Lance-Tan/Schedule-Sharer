@@ -73,7 +73,7 @@ function formatMinutes(minutes: number): string {
       <div *ngIf="isOwnSchedule" class="upload-section">
         <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4 mb-6">
           <div class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-base-content/80">Replace from .ics</span>
+            <span class="text-sm font-medium text-base-content/80">Import .ics into this schedule</span>
             <input
               type="file"
               class="file-input file-input-bordered w-full max-w-xs"
@@ -90,7 +90,7 @@ function formatMinutes(minutes: number): string {
 
       <!-- Empty state -->
       <div *ngIf="scheduleRows.length === 0" class="text-gray-500">
-        No events found. {{ isOwnSchedule ? 'Upload a .ics file here or at sign-up.' : 'This friend has no schedule yet.' }}
+        No events found. {{ isOwnSchedule ? 'Upload a .ics file or pick another schedule in the sidebar.' : 'This friend has no active schedule yet.' }}
       </div>
 
       <!-- Schedule display -->
@@ -219,13 +219,16 @@ function formatMinutes(minutes: number): string {
 })
 export class ScheduleComponent implements OnInit, OnChanges {
   @Input() userId: number | null = null;
+  @Input() viewerUserId: number | null = null;
   @Input() isOwnSchedule: boolean = false;
+  @Input() scheduleId: number | null = null;
   @Output() scheduleUpdated = new EventEmitter<void>();
 
   scheduleRows: ScheduleRow[] = [];
   uploading = false;
   uploadError = '';
   uploadSuccess = '';
+  loadError = '';
 
   visibleDays: string[] = [];
   timeSlots: { label: string; isHour: boolean }[] = [];
@@ -238,14 +241,23 @@ export class ScheduleComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['userId'] && this.userId) this.loadSchedule();
+    if ((changes['userId'] || changes['scheduleId'] || changes['isOwnSchedule'] || changes['viewerUserId']) && this.userId) {
+      this.loadSchedule();
+    }
   }
 
   // Unchanged from your original
   loadSchedule() {
     if (!this.userId) return;
 
-    this.scheduleService.getSchedule(this.userId).subscribe({
+    this.loadError = '';
+    const viewer = this.viewerUserId ?? undefined;
+    const sid = this.isOwnSchedule ? (this.scheduleId ?? undefined) : undefined;
+
+    this.scheduleService.getSchedule(this.userId, {
+      viewerId: viewer,
+      scheduleId: sid
+    }).subscribe({
       next: (res: any) => {
         const events = (res ?? []) as {
           eventName?: string;
@@ -277,6 +289,8 @@ export class ScheduleComponent implements OnInit, OnChanges {
       error: (err) => {
         console.error('Failed to load schedule:', err);
         this.scheduleRows = [];
+        const msg = err?.error?.error;
+        this.loadError = typeof msg === 'string' ? msg : 'Could not load schedule.';
       }
     });
   }
@@ -290,7 +304,9 @@ export class ScheduleComponent implements OnInit, OnChanges {
     this.uploadSuccess = '';
     this.uploading = true;
 
-    this.scheduleService.uploadSchedule(this.userId, file).subscribe({
+    const sid = this.scheduleId;
+
+    this.scheduleService.uploadSchedule(this.userId, file, sid).subscribe({
       next: () => {
         this.uploading = false;
         this.uploadSuccess = 'Schedule updated.';
@@ -300,7 +316,13 @@ export class ScheduleComponent implements OnInit, OnChanges {
       },
       error: (err: any) => {
         this.uploading = false;
-        this.uploadError = err?.error?.message || err?.message || 'Upload failed. Try again.';
+        const body = err?.error;
+        const errorMessage =
+          (typeof body === 'object' && body?.error) ||
+          body?.message ||
+          err?.message ||
+          'Upload failed. Try again.';
+        this.uploadError = typeof errorMessage === 'string' ? errorMessage : 'Upload failed. Try again.';
         console.error('Upload error:', err);
         input.value = '';
       },

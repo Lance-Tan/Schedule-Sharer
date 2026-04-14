@@ -1,118 +1,278 @@
 <app-nav-bar [signedIn]=true></app-nav-bar>
 
-<div class="drawer md:drawer-open">
-  <input id="my-drawer-3" type="checkbox" class="drawer-toggle" />
-  
-  <div class="drawer-content relative flex flex-col p-14">
+<div class="drawer">
+  <input
+    id="my-drawer-3"
+    type="checkbox"
+    class="drawer-toggle"
+    [checked]="sidebarOpen()"
+    (change)="onDrawerCheckboxChange($any($event.target).checked)"
+  />
+
+  <div class="drawer-content relative flex flex-col p-14 pt-16 md:pt-14">
+    <button
+      type="button"
+      class="btn btn-square btn-ghost border border-base-300 absolute left-3 top-3 z-20"
+      (click)="toggleSidebar()"
+      [attr.aria-label]="sidebarOpen() ? 'Hide sidebar' : 'Show sidebar'"
+      [attr.aria-expanded]="sidebarOpen()"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+
     <h2 class="font-semibold text-3xl">{{ getSelectedAccountName() }}</h2>
 
     <app-schedule 
       [userId]="selectedUserId()"
+      [viewerUserId]="user?.id ?? null"
       [isOwnSchedule]="curUsr()"
+      [scheduleId]="curUsr() ? selectedScheduleId() : null"
       (scheduleUpdated)="onScheduleUpdated()">
     </app-schedule>
-
-    <label for="my-drawer-3" class="glass btn btn-circle m-3 drawer-button md:hidden absolute left-0 top-0">
-      >
-    </label>
   </div>
-  
-  <div class="drawer-side">
-    <label for="my-drawer-3" aria-label="close sidebar" class="drawer-overlay"></label>
-    
-    <ul class="menu bg-base-200 min-h-full w-80 p-4 gap-2">
-      <li>
+
+  <div class="drawer-side z-30">
+    <label for="my-drawer-3" aria-label="Close sidebar" class="drawer-overlay"></label>
+
+    <div class="bg-base-200 min-h-full w-80 max-w-[85vw] flex flex-col p-4 gap-3">
+      <div class="flex justify-end lg:justify-between lg:items-center gap-2 shrink-0">
+        <span class="hidden lg:inline text-sm font-semibold text-base-content/70">Menu</span>
+        <button type="button" class="btn btn-sm btn-ghost btn-square" (click)="sidebarOpen.set(false)" aria-label="Close sidebar">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <section class="rounded-box border border-base-300 bg-base-100/50 p-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60 px-1 mb-2">My account</h2>
         <button
-          class="btn rounded-box"
+          type="button"
+          class="btn rounded-box w-full"
           [ngClass]="selectedUserId() === user?.id ? 'btn-neutral' : 'btn-outline'"
           (click)="selectAccount(user.id)">
           My Schedule
         </button>
-      </li>
+      </section>
 
-      @for (account of friends(); track account.id) {
-        <li>
-          <button
-            class="btn rounded-box"
-            [ngClass]="selectedUserId() === account.id ? 'btn-neutral' : 'btn-outline'"
-            (click)="selectAccount(account.id)">
-            @{{ account.username }} ({{account.name}})
-          </button>
-        </li>
-      }
-
-      <hr class="my-2 text-gray-300">
-
-      <li class="mt-1">
-        <div class="font-semibold text-base-content/80">Incoming Requests</div>
-      </li>
-      <li *ngIf="incomingRequests().length === 0" class="text-sm text-base-content/60">
-        No pending requests
-      </li>
-      @for (req of incomingRequests(); track req.friendshipId) {
-        <li class="rounded-box bg-base-100 p-2">
-          <div class="text-sm font-medium truncate">@{{ req.fromUsername }}</div>
-          <div class="text-xs text-base-content/70 truncate mb-2">{{ req.fromName }}</div>
-          <div class="flex gap-2">
-            <button class="btn btn-xs btn-success" type="button" (click)="acceptRequest(req.friendshipId)">Accept</button>
-            <button class="btn btn-xs btn-outline" type="button" (click)="denyRequest(req.friendshipId)">Deny</button>
-          </div>
-        </li>
-      }
-      <li *ngIf="requestActionMessage" class="text-xs text-base-content/70">{{ requestActionMessage }}</li>
-
-      <li>
-        <div class="dropdown p-0">
-          <div tabindex="0" role="button" class="btn btn-primary w-full rounded-box">Connect a New Schedule</div>
-          <div tabindex="-1" class="dropdown-content bg-base-100 rounded-box z-1 w-full mt-2 p-2 px-3 shadow-lg">
-            <h3 class="font-semibold text-lg mb-1">Search Users</h3>
-
-            <div class="flex flex-row">
-              <label class="input">
-                <input
-                  type="search"
-                  required
-                  placeholder="Username"
-                  [(ngModel)]="searchUsername"
-                  name="searchUsername"
-                  (keyup.enter)="onSearchUsers()"
-                />
-              </label>
-              <button class="btn btn-circle ml-1" type="button" (click)="onSearchUsers()">
-                <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                  <g
-                    stroke-linejoin="round"
-                    stroke-linecap="round"
-                    stroke-width="2.5"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.3-4.3"></path>
-                  </g>
-                </svg>
+      <section class="rounded-box border border-base-300 bg-base-100/50 overflow-hidden">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left font-semibold text-sm text-base-content hover:bg-base-200/80"
+          (click)="toggleFriendsSection()"
+          [attr.aria-expanded]="friendsSectionOpen()"
+        >
+          <span>Friends</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4 shrink-0 transition-transform duration-200"
+            [class.rotate-180]="friendsSectionOpen()"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        @if (friendsSectionOpen()) {
+          <div class="border-t border-base-300 px-2 pb-2 pt-1 flex flex-col gap-1.5">
+            @for (account of friends(); track account.id) {
+              <button
+                type="button"
+                class="btn btn-sm rounded-box w-full justify-start"
+                [ngClass]="selectedUserId() === account.id ? 'btn-neutral' : 'btn-outline'"
+                (click)="selectAccount(account.id)">
+                <span class="truncate">&#64;{{ account.username }} ({{ account.name }})</span>
               </button>
-            </div>
+            }
+            @if (friends().length === 0) {
+              <p class="text-xs text-base-content/60 px-1 py-1">No friends yet. Add people below.</p>
+            }
+          </div>
+        }
+      </section>
 
-            <p *ngIf="searchError" class="text-sm text-error mt-2">{{ searchError }}</p>
-            <p *ngIf="searchSuccess" class="text-sm text-success mt-2">{{ searchSuccess }}</p>
-
-            <div *ngIf="searchResults().length > 0" class="mt-2 flex flex-col gap-2">
-              @for (u of searchResults(); track u.id) {
-                <div class="flex items-center justify-between gap-2">
-                  <div class="min-w-0">
-                    <div class="font-medium truncate">@{{ u.username }}</div>
-                    <div class="text-xs text-base-content/70 truncate">{{ u.name }}</div>
-                  </div>
-                  <button class="btn btn-sm btn-outline" type="button" (click)="sendFriendRequest(u.id)">
+      @if (selectedUserId() === user?.id) {
+        <section class="rounded-box border border-base-300 bg-base-100/50 overflow-hidden">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left font-semibold text-sm text-base-content hover:bg-base-200/80"
+            (click)="toggleMySchedulesSection()"
+            [attr.aria-expanded]="mySchedulesSectionOpen()"
+          >
+            <span>My schedules</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4 shrink-0 transition-transform duration-200"
+              [class.rotate-180]="mySchedulesSectionOpen()"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          @if (mySchedulesSectionOpen()) {
+            <div class="border-t border-base-300 p-2 flex flex-col gap-2">
+              <p class="text-xs text-base-content/60 px-1">Active is shared with friends. Import .ics applies to the selected schedule.</p>
+              @for (s of schedules(); track s.scheduleId) {
+                <div class="rounded-box bg-base-200 p-2">
+                  @if (renamingScheduleId() === s.scheduleId) {
+                    <div class="flex flex-col gap-2">
+                      <input
+                        type="text"
+                        class="input input-bordered input-sm w-full"
+                        [(ngModel)]="renameDraft"
+                        [name]="'rename-' + s.scheduleId"
+                      />
+                      <div class="flex flex-wrap gap-1">
+                        <button type="button" class="btn btn-xs btn-primary" (click)="saveRename()">Save</button>
+                        <button type="button" class="btn btn-xs btn-ghost" (click)="cancelRename()">Cancel</button>
+                      </div>
+                    </div>
+                  } @else {
+                    <button
+                      type="button"
+                      class="text-left text-sm font-medium w-full truncate"
+                      [class.text-primary]="selectedScheduleId() === s.scheduleId"
+                      (click)="selectSchedule(s.scheduleId)">
+                      {{ s.name }}
+                      @if (s.active) {
+                        <span class="badge badge-success badge-xs ml-1">Active</span>
+                      }
+                    </button>
+                    <div class="flex flex-wrap gap-1 mt-2">
+                      <button type="button" class="btn btn-xs btn-outline" (click)="startRename(s)">Rename</button>
+                      @if (!s.active) {
+                        <button type="button" class="btn btn-xs btn-outline" (click)="setActiveScheduleId(s.scheduleId)">Set active</button>
+                      }
+                      <button type="button" class="btn btn-xs btn-error btn-outline" (click)="deleteScheduleById(s.scheduleId)">Delete</button>
+                    </div>
+                  }
+                </div>
+              }
+              <div class="flex flex-col gap-2 px-0.5">
+                <div class="flex gap-2">
+                  <input
+                    type="text"
+                    class="input input-bordered input-sm flex-1"
+                    placeholder="New schedule name"
+                    [(ngModel)]="newScheduleName"
+                    name="newSchedName"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-primary"
+                    [disabled]="creatingSchedule"
+                    (click)="createEmptySchedule()">
                     Add
                   </button>
                 </div>
-              }
+                @if (scheduleListError) {
+                  <p class="text-xs text-error">{{ scheduleListError }}</p>
+                }
+              </div>
             </div>
+          }
+        </section>
+      }
+
+      <section class="rounded-box border border-base-300 bg-base-100/50 overflow-hidden">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left font-semibold text-sm text-base-content hover:bg-base-200/80"
+          (click)="toggleIncomingSection()"
+          [attr.aria-expanded]="incomingSectionOpen()"
+        >
+          <span>Incoming requests</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4 shrink-0 transition-transform duration-200"
+            [class.rotate-180]="incomingSectionOpen()"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        @if (incomingSectionOpen()) {
+          <div class="border-t border-base-300 p-2 flex flex-col gap-2">
+            @if (incomingRequests().length === 0) {
+              <p class="text-sm text-base-content/60">No pending requests</p>
+            }
+            @for (req of incomingRequests(); track req.friendshipId) {
+              <div class="rounded-box bg-base-200 p-2">
+                <div class="text-sm font-medium truncate">&#64;{{ req.fromUsername }}</div>
+                <div class="text-xs text-base-content/70 truncate mb-2">{{ req.fromName }}</div>
+                <div class="flex gap-2">
+                  <button class="btn btn-xs btn-success" type="button" (click)="acceptRequest(req.friendshipId)">Accept</button>
+                  <button class="btn btn-xs btn-outline" type="button" (click)="denyRequest(req.friendshipId)">Deny</button>
+                </div>
+              </div>
+            }
+            @if (requestActionMessage) {
+              <p class="text-xs text-base-content/70 px-0.5">{{ requestActionMessage }}</p>
+            }
+          </div>
+        }
+      </section>
+
+      <div class="dropdown w-full mt-auto pt-1">
+        <div tabindex="0" role="button" class="btn btn-primary w-full rounded-box">Connect a New Schedule</div>
+        <div tabindex="-1" class="dropdown-content bg-base-100 rounded-box z-[1] w-full max-h-80 overflow-y-auto mt-2 p-2 px-3 shadow-lg border border-base-300">
+          <h3 class="font-semibold text-lg mb-1">Search Users</h3>
+
+          <div class="flex flex-row">
+            <label class="input">
+              <input
+                type="search"
+                required
+                placeholder="Username"
+                [(ngModel)]="searchUsername"
+                name="searchUsername"
+                (keyup.enter)="onSearchUsers()"
+              />
+            </label>
+            <button class="btn btn-circle ml-1 shrink-0" type="button" (click)="onSearchUsers()">
+              <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <g
+                  stroke-linejoin="round"
+                  stroke-linecap="round"
+                  stroke-width="2.5"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.3-4.3"></path>
+                </g>
+              </svg>
+            </button>
+          </div>
+
+          <p *ngIf="searchError" class="text-sm text-error mt-2">{{ searchError }}</p>
+          <p *ngIf="searchSuccess" class="text-sm text-success mt-2">{{ searchSuccess }}</p>
+
+          <div *ngIf="searchResults().length > 0" class="mt-2 flex flex-col gap-2">
+            @for (u of searchResults(); track u.id) {
+              <div class="flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="font-medium truncate">&#64;{{ u.username }}</div>
+                  <div class="text-xs text-base-content/70 truncate">{{ u.name }}</div>
+                </div>
+                <button class="btn btn-sm btn-outline shrink-0" type="button" (click)="sendFriendRequest(u.id)">
+                  Add
+                </button>
+              </div>
+            }
           </div>
         </div>
-      </li>
-    </ul>
+      </div>
+    </div>
   </div>
 </div>
