@@ -78,8 +78,21 @@
           </svg>
         </button>
         @if (friendsSectionOpen()) {
-          <div class="border-t border-base-300 px-2 pb-2 pt-1 flex flex-col gap-1.5">
-            @for (account of friends(); track account.id) {
+          <div class="border-t border-base-300 px-2 pb-2 pt-2 flex flex-col gap-2">
+            <label class="input input-bordered input-sm flex items-center gap-2 w-full" [attr.aria-label]="'Filter friends'">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="search"
+                name="friendsFilter"
+                class="grow min-w-0 text-sm"
+                placeholder="Filter friends…"
+                [(ngModel)]="friendsFilterQuery"
+                autocomplete="off"
+              />
+            </label>
+            @for (account of filteredFriends(); track account.id) {
               <button
                 type="button"
                 class="btn btn-sm rounded-box w-full justify-start"
@@ -90,6 +103,8 @@
             }
             @if (friends().length === 0) {
               <p class="text-xs text-base-content/60 px-1 py-1">No friends yet. Add people below.</p>
+            } @else if (filteredFriends().length === 0) {
+              <p class="text-xs text-base-content/60 px-1 py-1">No friends match your filter.</p>
             }
           </div>
         }
@@ -223,9 +238,9 @@
         }
       </section>
 
-      <div class="dropdown w-full mt-auto pt-1">
+      <div class="dropdown dropdown-top w-full mt-auto pt-1">
         <div tabindex="0" role="button" class="btn btn-primary w-full rounded-box">Connect a New Schedule</div>
-        <div tabindex="-1" class="dropdown-content bg-base-100 rounded-box z-[1] w-full max-h-80 overflow-y-auto mt-2 p-2 px-3 shadow-lg border border-base-300">
+        <div tabindex="-1" class="dropdown-content bg-base-100 rounded-box z-[60] w-full max-h-[min(70vh,20rem)] overflow-y-auto mb-2 p-2 px-3 shadow-lg border border-base-300">
           <h3 class="font-semibold text-lg mb-1">Search Users</h3>
 
           <div class="flex flex-row">

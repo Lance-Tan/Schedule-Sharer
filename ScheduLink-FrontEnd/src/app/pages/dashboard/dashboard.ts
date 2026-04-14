@@ -61,6 +61,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   renameDraft = '';
   sidebarOpen = signal(true);
   friendsSectionOpen = signal(true);
+  friendsFilterQuery = '';
   mySchedulesSectionOpen = signal(true);
   incomingSectionOpen = signal(true);
 
@@ -293,6 +294,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   curUsr(): boolean {
     const selectedId = this.selectedUserId();
     return selectedId != null && selectedId === this.user?.id;
+  }
+
+  filteredFriends(): Account[] {
+    const list = this.friends();
+    const q = (this.friendsFilterQuery ?? '').trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (a) =>
+        (a.username ?? '').toLowerCase().includes(q) || (a.name ?? '').toLowerCase().includes(q)
+    );
   }
 
   onSearchUsers() {
