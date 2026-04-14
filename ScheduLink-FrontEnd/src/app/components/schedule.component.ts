@@ -206,6 +206,14 @@ function formatMinutes(minutes: number): string {
       transition: filter 0.15s;
       z-index: 1;
     }
+
+    .ev-name {
+      white-space: normal; /* Allows text to wrap if the box is tall enough */
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2; /* Shows up to 2 lines before elipses (...) */
+      -webkit-box-orient: vertical;
+    }
     .sched-event:hover { filter: brightness(0.92); }
     .ev-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
 

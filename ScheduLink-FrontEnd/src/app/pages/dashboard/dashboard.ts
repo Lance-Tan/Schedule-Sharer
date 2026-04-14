@@ -390,41 +390,88 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   compareWithFriend(friendId: number) {
-  if (!this.user?.id) return;
-
-  this.scheduleListError = '';
-  
   this.scheduleService.compareSchedules(this.user.id, friendId).subscribe({
     next: (res: any) => {
       const combined = res.combinedSchedule || [];
-      const newRows: any[] = [];
-
+      
+      let allSlots: any[] = [];
       combined.forEach((event: any) => {
         event.timeslots.forEach((slot: any) => {
-          newRows.push({
-            eventName: `${event.eventName} (${event.ownerName})`,
+          allSlots.push({
+            name: `${event.eventName} (${event.ownerName})`,
             day: slot.day,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            owner: event.ownerName
+            startMins: this.parseTimeToMinutes(slot.startTime),
+            endMins: this.parseTimeToMinutes(slot.endTime)
           });
         });
       });
 
-      this.scheduleRows = newRows;
+      const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'MO', 'TU', 'WE', 'TH', 'FR'];
+      allSlots.sort((a, b) => {
+        if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+        return a.startMins - b.startMins;
+      });
+
+      const mergedRows: any[] = [];
+      if (allSlots.length > 0) {
+        let current = { ...allSlots[0] };
+
+        for (let i = 1; i < allSlots.length; i++) {
+          let next = allSlots[i];
+
+          if (next.day === current.day && next.startMins < current.endMins) {
+            current.name += ` + ${next.name}`;
+            current.endMins = Math.max(current.endMins, next.endMins);
+          } else {
+            mergedRows.push(this.finalizeRow(current));
+            current = { ...next };
+          }
+        }
+        mergedRows.push(this.finalizeRow(current));
+      }
+
+      this.scheduleRows = mergedRows;
       this.isCompareMode.set(true);
       this.selectedUserId.set(friendId);
       this.sidebarOpen.set(false);
-    },
-    error: (err) => {
-      this.scheduleListError = 'Could not compare schedules. Make sure both users have active schedules.';
-      console.error('Comparison error:', err);
     }
   });
 }
 
-  overrideSelectAccount(userId: number) {
-    this.isCompareMode.set(false);
-    this.selectAccount(userId);
+private parseTimeToMinutes(time: string): number {
+  if (!time || time === '—') return 0;
+  
+  const ampm = /(\d+):(\d+)\s*(AM|PM)/i.exec(time.trim());
+  if (ampm) {
+    let h = parseInt(ampm[1], 10);
+    const m = parseInt(ampm[2], 10);
+    const period = ampm[3].toUpperCase();
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return h * 60 + m;
+  }
+
+  const parts = time.split(':');
+  if (parts.length >= 2) {
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+  }
+  return 0;
+}
+
+private formatMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const period = h < 12 ? 'AM' : 'PM';
+  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${displayH}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
+private finalizeRow(item: any) {
+  return {
+    eventName: item.name,
+    day: item.day,
+    startTime: this.formatMinutes(item.startMins),
+    endTime: this.formatMinutes(item.endMins)
+  };
 }
 }
