@@ -24,4 +24,8 @@ public class User {
     @Column(nullable = false)
     @JsonIgnore
     private String passwordHash;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "active_schedule_id")
+    private Schedule activeSchedule;
 }
