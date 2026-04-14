@@ -199,7 +199,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!this.user?.id) return;
     this.scheduleListError = '';
     this.scheduleService.setActiveSchedule(this.user.id, scheduleId).subscribe({
-      next: () => this.loadSchedules(),
+      next: () => {
+        this.selectedScheduleId.set(scheduleId);
+        this.loadSchedules();
+      },
       error: () => {
         this.scheduleListError = 'Could not update active schedule.';
       }
