@@ -1,6 +1,6 @@
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { NavBar } from '../../components/nav-bar.component';
@@ -25,9 +25,8 @@ interface IncomingRequest {
 @Component({
   selector: 'app-dashboard',
   imports: [
-    RouterOutlet, 
-    NavBar, 
-    CommonModule, 
+    NavBar,
+    CommonModule,
     FormsModule,
     ScheduleComponent
   ],
@@ -60,6 +59,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   scheduleListError = '';
   renamingScheduleId = signal<number | null>(null);
   renameDraft = '';
+  sidebarOpen = signal(true);
+  friendsSectionOpen = signal(true);
+  mySchedulesSectionOpen = signal(true);
+  incomingSectionOpen = signal(true);
 
   constructor(
     private friendService: FriendService,
@@ -87,6 +90,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+  }
+
+  toggleSidebar() {
+    this.sidebarOpen.update((v) => !v);
+  }
+
+  toggleFriendsSection() {
+    this.friendsSectionOpen.update((v) => !v);
+  }
+
+  toggleMySchedulesSection() {
+    this.mySchedulesSectionOpen.update((v) => !v);
+  }
+
+  toggleIncomingSection() {
+    this.incomingSectionOpen.update((v) => !v);
+  }
+
+  onDrawerCheckboxChange(checked: boolean) {
+    this.sidebarOpen.set(checked);
   }
 
   startPolling() {
