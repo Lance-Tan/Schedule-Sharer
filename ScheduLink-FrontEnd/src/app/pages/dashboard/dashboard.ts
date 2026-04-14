@@ -59,7 +59,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   scheduleListError = '';
   renamingScheduleId = signal<number | null>(null);
   renameDraft = '';
-  sidebarOpen = signal(true);
+  sidebarOpen = signal(false);
   friendsSectionOpen = signal(true);
   friendsFilterQuery = '';
   mySchedulesSectionOpen = signal(true);
