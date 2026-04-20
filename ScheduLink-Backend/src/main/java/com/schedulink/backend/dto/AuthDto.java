@@ -24,6 +24,8 @@ public class AuthDto {
         private String name;
         private String username;
         private String email;
+        private String bio;
+        private String timezone;
         private String token;
     }
 }

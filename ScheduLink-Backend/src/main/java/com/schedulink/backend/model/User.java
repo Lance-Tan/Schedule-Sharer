@@ -25,6 +25,11 @@ public class User {
     @JsonIgnore
     private String passwordHash;
 
+    @Column(length = 500)
+    private String bio;
+
+    private String timezone;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "active_schedule_id")
     private Schedule activeSchedule;
