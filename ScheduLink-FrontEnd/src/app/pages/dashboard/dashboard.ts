@@ -128,6 +128,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.showOnboarding.set(false);
   }
 
+  reopenOnboarding() {
+    this.showOnboarding.set(true);
+  }
+
   startPolling() {
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = setInterval(() => {

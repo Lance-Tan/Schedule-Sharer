@@ -137,7 +137,7 @@ function formatMinutes(minutes: number): string {
               [style.grid-row]="(ev.rowStart + 2) + ' / span ' + ev.rowSpan"
               [style.width.%]="(100 / ev.laneCount) * ev.laneSpan"
               [style.left.%]="(100 / ev.laneCount) * ev.laneIndex"
-              [title]="ev.ownerLabel ? (ev.ownerLabel + ': ' + ev.label) : ev.label">
+              [title]="getEventTooltip(ev)">
               <span class="ev-name">{{ getVisibleLabel(ev) }}</span>
             </div>
 
@@ -529,5 +529,17 @@ ngOnChanges(changes: SimpleChanges) {
       return `${ev.label} (${ev.ownerLabel})`;
     }
     return ev.label;
+  }
+
+  getEventTooltip(ev: GridEvent): string {
+    const lines = [
+      `Class: ${ev.label}`,
+      `Day: ${ev.day}`,
+      `Time: ${formatMinutes(ev.startMins)} - ${formatMinutes(ev.endMins)}`
+    ];
+    if (ev.ownerLabel) {
+      lines.push(`Owner: ${ev.ownerLabel}`);
+    }
+    return lines.join('\n');
   }
 }
