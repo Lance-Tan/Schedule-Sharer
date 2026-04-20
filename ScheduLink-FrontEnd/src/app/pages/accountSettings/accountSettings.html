@@ -100,39 +100,77 @@
     @if (activeTab === 'Profile') {
       <div class="flex items-center justify-between mb-8">
         <h2 class="text-xl font-bold">Profile Information</h2>
-        <button class="btn btn-ghost btn-sm text-primary font-semibold">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-          </svg>
-          Edit
-        </button>
+        @if (!isEditing) {
+          <button class="btn btn-ghost btn-sm text-primary font-semibold" (click)="toggleEdit()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            Edit
+          </button>
+        } @else {
+          <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" (click)="cancelEdit()">Cancel</button>
+            <button class="btn btn-primary btn-sm text-white" (click)="saveProfile()">Save Changes</button>
+          </div>
+        }
       </div>
+
+      @if (editErrorMessage) {
+        <div class="alert alert-error text-white mb-6 p-3 rounded-lg flex shadow-sm text-sm">
+          <span>{{ editErrorMessage }}</span>
+        </div>
+      }
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
         <div>
           <label class="block text-sm font-semibold mb-2">Name</label>
-          <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.name || '-' }}</div>
+          @if (!isEditing) {
+            <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.name || '-' }}</div>
+          } @else {
+            <input type="text" class="input input-bordered w-full" [(ngModel)]="editForm.name" />
+          }
         </div>
+        
         <div>
           <label class="block text-sm font-semibold mb-2">Username</label>
-          <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.username || '-' }}</div>
+          @if (!isEditing) {
+            <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.username || '-' }}</div>
+          } @else {
+            <input type="text" class="input input-bordered w-full" [(ngModel)]="editForm.username" />
+          }
         </div>
+        
         <div>
           <label class="block text-sm font-semibold mb-2">Email Address</label>
-          <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.email || '-' }}</div>
+          @if (!isEditing) {
+            <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.email || '-' }}</div>
+          } @else {
+            <input type="email" class="input input-bordered w-full" [(ngModel)]="editForm.email" />
+          }
         </div>
+        
         <div>
           <label class="block text-sm font-semibold mb-2">Default Timezone</label>
-          <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">UTC (Default)</div>
+          @if (!isEditing) {
+            <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.timezone || 'UTC (Default)' }}</div>
+          } @else {
+            <input type="text" class="input input-bordered w-full" [(ngModel)]="editForm.timezone" placeholder="e.g. EST, UTC-5" />
+          }
         </div>
+        
         <div>
           <label class="block text-sm font-semibold mb-2">Friend Code Link</label>
-          <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">schedulink.app/u/{{ user?.username || 'user' }}</div>
+          <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80 truncate">schedulink.app/u/{{ isEditing ? editForm.username : user?.username }}</div>
         </div>
+        
         <div>
           <label class="block text-sm font-semibold mb-2">Bio</label>
-          <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">Not provided</div>
+          @if (!isEditing) {
+            <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.bio || 'Not provided' }}</div>
+          } @else {
+            <input type="text" class="input input-bordered w-full" [(ngModel)]="editForm.bio" placeholder="Tell us about yourself" />
+          }
         </div>
       </div>
     }

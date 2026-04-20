@@ -13,5 +13,9 @@ export class UserService {
   searchByUsername(username: string) {
     return this.http.get(`${this.baseUrl}/search?username=${encodeURIComponent(username)}`);
   }
+
+  updateProfile(userId: number, data: any) {
+    return this.http.put(`${this.baseUrl}/${userId}`, data);
+  }
 }
 

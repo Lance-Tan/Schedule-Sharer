@@ -42,6 +42,8 @@ public class AuthController {
         response.setName(newUser.getName());
         response.setUsername(newUser.getUsername());
         response.setEmail(newUser.getEmail());
+        response.setBio(newUser.getBio());
+        response.setTimezone(newUser.getTimezone());
         response.setToken("mock-jwt-token");
 
         return ResponseEntity.ok(response);
@@ -60,6 +62,8 @@ public class AuthController {
         response.setName(user.getName());
         response.setUsername(user.getUsername());
         response.setEmail(user.getEmail());
+        response.setBio(user.getBio());
+        response.setTimezone(user.getTimezone());
         response.setToken("mock-jwt-token");
 
         return ResponseEntity.ok(response);

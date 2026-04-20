@@ -1,11 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { NavBar } from '../../components/nav-bar.component';
 import { FriendService } from '../../services/friend.service';
+import { UserService } from '../../services/user.service';
 
 @Component({
   selector: 'app-accountSettings',
-  imports: [NavBar],
+  imports: [NavBar, FormsModule],
   templateUrl: './accountSettings.html',
   styleUrl: './accountSettings.css'
 })
@@ -14,8 +16,16 @@ export class AccountSettingsComponent implements OnInit {
   user: any = null;
   pendingRequests: any[] = [];
   requestActionMessage = '';
+  
+  isEditing = false;
+  editForm: any = {};
+  editErrorMessage = '';
 
-  constructor(private router: Router, private friendService: FriendService) {}
+  constructor(
+    private router: Router,
+    private friendService: FriendService,
+    private userService: UserService
+  ) {}
 
   ngOnInit() {
     const stored = localStorage.getItem('user');
@@ -79,6 +89,36 @@ export class AccountSettingsComponent implements OnInit {
         setTimeout(() => this.requestActionMessage = '', 3000);
       },
       error: () => this.requestActionMessage = 'Something went wrong.'
+    });
+  }
+
+  toggleEdit() {
+    this.isEditing = true;
+    this.editErrorMessage = '';
+    //deep clone user to editForm
+    this.editForm = { ...this.user };
+  }
+
+  cancelEdit() {
+    this.isEditing = false;
+    this.editErrorMessage = '';
+  }
+
+  saveProfile() {
+    this.editErrorMessage = '';
+    this.userService.updateProfile(this.user.id, this.editForm).subscribe({
+      next: (updatedUser: any) => {
+        this.user = updatedUser;
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        this.isEditing = false;
+      },
+      error: (err) => {
+        if (err.error && typeof err.error === 'string') {
+          this.editErrorMessage = err.error;
+        } else {
+          this.editErrorMessage = 'Failed to update profile. Please try again.';
+        }
+      }
     });
   }
 }
