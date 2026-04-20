@@ -8,14 +8,25 @@ interface ScheduleRow {
   day: string;
   startTime: string;
   endTime: string;
+  ownerKey?: string;
+  ownerName?: string;
 }
 
 interface GridEvent {
+  id: number;
   label: string;
+  ownerLabel?: string;
+  day: string;
+  startMins: number;
+  endMins: number;
   colIndex: number;
   rowStart: number;
   rowSpan: number;
   colorClass: string;
+  isOverlap: boolean;
+  laneIndex: number;
+  laneCount: number;
+  laneSpan: number;
 }
 
 const GRID_START_HOUR = 7;
@@ -124,8 +135,10 @@ function formatMinutes(minutes: number): string {
               class="sched-event {{ ev.colorClass }}"
               [style.grid-column]="ev.colIndex + 2"
               [style.grid-row]="(ev.rowStart + 2) + ' / span ' + ev.rowSpan"
-              [title]="ev.label">
-              <span class="ev-name">{{ ev.label }}</span>
+              [style.width.%]="(100 / ev.laneCount) * ev.laneSpan"
+              [style.left.%]="(100 / ev.laneCount) * ev.laneIndex"
+              [title]="ev.ownerLabel ? (ev.ownerLabel + ': ' + ev.label) : ev.label">
+              <span class="ev-name">{{ getVisibleLabel(ev) }}</span>
             </div>
 
           </div>
@@ -147,9 +160,11 @@ function formatMinutes(minutes: number): string {
 
     .sched-grid {
       display: grid;
-      grid-template-columns: 52px repeat(var(--day-count, 5), minmax(80px, 1fr));
+      /* Fill available width, but keep a minimum readable day width. */
+      grid-template-columns: 52px repeat(var(--day-count, 5), minmax(120px, 1fr));
       grid-template-rows: 36px repeat(28, 24px);
-      min-width: 400px;
+      width: 100%;
+      min-width: 0;
       position: relative;
     }
 
@@ -196,9 +211,13 @@ function formatMinutes(minutes: number): string {
     .bg-cell.hour-line { border-bottom-color: oklch(var(--bc) / 0.12); }
 
     .sched-event {
-      margin: 1px 3px;
+      margin: 1px 0;
+      position: relative;
+      justify-self: start;
+      box-sizing: border-box;
+      min-width: 0;
       border-radius: 5px;
-      padding: 2px 6px;
+      padding: 2px 4px;
       font-size: 11px; font-weight: 500; line-height: 1.3;
       overflow: hidden;
       display: flex; align-items: flex-start;
@@ -217,12 +236,13 @@ function formatMinutes(minutes: number): string {
     .sched-event:hover { filter: brightness(0.92); }
     .ev-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
 
-    .ev-purple { background: #CECBF6; color: #3C3489; }
-    .ev-teal   { background: #9FE1CB; color: #085041; }
-    .ev-blue   { background: #B5D4F4; color: #0C447C; }
-    .ev-coral  { background: #F5C4B3; color: #712B13; }
-    .ev-amber  { background: #FAC775; color: #633806; }
-    .ev-green  { background: #C0DD97; color: #27500A; }
+    .ev-purple { background: rgb(206 203 246 / 0.75); color: #3C3489; }
+    .ev-teal   { background: rgb(159 225 203 / 0.75); color: #085041; }
+    .ev-blue   { background: rgb(181 212 244 / 0.75); color: #0C447C; }
+    .ev-coral  { background: rgb(245 196 179 / 0.75); color: #712B13; }
+    .ev-amber  { background: rgb(250 199 117 / 0.75); color: #633806; }
+    .ev-green  { background: rgb(192 221 151 / 0.75); color: #27500A; }
+
   `]
 })
 export class ScheduleComponent implements OnInit, OnChanges {
@@ -365,10 +385,20 @@ ngOnChanges(changes: SimpleChanges) {
       isHour: i % SLOTS_PER_HOUR === 0,
     }));
 
+    const ownerRows = this.scheduleRows.filter((r) => !!r.ownerKey);
+    const ownerSet = new Set(ownerRows.map((r) => r.ownerKey as string));
+    const ownerLaneMap = new Map<string, number>();
+    let ownerIdx = 0;
+    ownerSet.forEach((key) => {
+      ownerLaneMap.set(key, ownerIdx++);
+    });
+    const ownerLaneCount = Math.max(1, ownerLaneMap.size);
+
     const colorMap = new Map<string, string>();
     let colorIdx = 0;
 
-    this.gridEvents = this.scheduleRows
+    let nextEventId = 1;
+    const events = this.scheduleRows
       .filter(row => row.day !== '—' && row.startTime !== '—')
       .map(row => {
         const colIndex = this.visibleDays.indexOf(row.day);
@@ -385,17 +415,119 @@ ngOnChanges(changes: SimpleChanges) {
         }
 
         return {
+          id: nextEventId++,
           label: row.eventName,
+          ownerLabel: row.ownerName,
+          day: row.day,
+          startMins,
+          endMins,
           colIndex,
           rowStart,
           rowSpan,
           colorClass: colorMap.get(row.eventName)!,
+          isOverlap: false,
+          laneIndex: 0,
+          laneCount: 1,
+          laneSpan: 1,
         } as GridEvent;
       })
       .filter((ev): ev is GridEvent => ev !== null);
+
+    // Calendar-style lane allocation:
+    // only events that overlap in time share one day-column width.
+    const byDay = new Map<string, GridEvent[]>();
+    for (const ev of events) {
+      const bucket = byDay.get(ev.day) ?? [];
+      bucket.push(ev);
+      byDay.set(ev.day, bucket);
+    }
+
+    for (const dayEvents of byDay.values()) {
+      dayEvents.sort((a, b) => (a.startMins - b.startMins) || (a.endMins - b.endMins));
+
+      const clusters: GridEvent[][] = [];
+      let current: GridEvent[] = [];
+      let currentMaxEnd = -1;
+
+      for (const ev of dayEvents) {
+        if (current.length === 0) {
+          current = [ev];
+          currentMaxEnd = ev.endMins;
+          continue;
+        }
+
+        if (ev.startMins < currentMaxEnd) {
+          current.push(ev);
+          currentMaxEnd = Math.max(currentMaxEnd, ev.endMins);
+        } else {
+          clusters.push(current);
+          current = [ev];
+          currentMaxEnd = ev.endMins;
+        }
+      }
+      if (current.length > 0) {
+        clusters.push(current);
+      }
+
+      for (const cluster of clusters) {
+        const laneEndTimes: number[] = [];
+        const laneById = new Map<number, number>();
+
+        for (const ev of cluster) {
+          let lane = -1;
+          for (let i = 0; i < laneEndTimes.length; i++) {
+            if (ev.startMins >= laneEndTimes[i]) {
+              lane = i;
+              break;
+            }
+          }
+          if (lane === -1) {
+            lane = laneEndTimes.length;
+            laneEndTimes.push(ev.endMins);
+          } else {
+            laneEndTimes[lane] = ev.endMins;
+          }
+          laneById.set(ev.id, lane);
+        }
+
+        const laneCount = Math.max(1, laneEndTimes.length);
+        for (const ev of cluster) {
+          ev.laneCount = laneCount;
+          ev.laneIndex = laneById.get(ev.id) ?? 0;
+          ev.isOverlap = laneCount > 1;
+          ev.laneSpan = 1;
+        }
+
+        // Expand events horizontally into adjacent free lanes.
+        // This ensures solo events can occupy full width while true overlaps split space.
+        for (const ev of cluster) {
+          let span = 1;
+          for (let lane = ev.laneIndex + 1; lane < laneCount; lane++) {
+            const blocked = cluster.some((other) => {
+              if (other.id === ev.id) return false;
+              if ((laneById.get(other.id) ?? 0) !== lane) return false;
+              return ev.startMins < other.endMins && other.startMins < ev.endMins;
+            });
+            if (blocked) break;
+            span++;
+          }
+          ev.laneSpan = span;
+        }
+      }
+    }
+
+    this.gridEvents = events;
   }
 
   isToday(day: string): boolean {
     return day === new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  }
+
+  getVisibleLabel(ev: GridEvent): string {
+    // In compare mode (multiple owner lanes), show ownership inline.
+    if (ev.laneCount > 1 && ev.ownerLabel) {
+      return `${ev.label} (${ev.ownerLabel})`;
+    }
+    return ev.label;
   }
 }

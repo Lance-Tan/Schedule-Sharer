@@ -59,6 +59,7 @@ export class SignupForm {
     this.authService.register({ name: this.name, username: this.username, email: this.email, password: this.password }).subscribe({
       next: (res: any) => {
         localStorage.setItem('user', JSON.stringify(res));
+        localStorage.setItem('showSignupOnboarding', '1');
 
         if (this.selectedFile) {
           this.scheduleService.uploadSchedule(res.id, this.selectedFile).subscribe({

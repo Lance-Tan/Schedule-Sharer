@@ -1,5 +1,25 @@
 <app-nav-bar [signedIn]=true></app-nav-bar>
 
+@if (showOnboarding()) {
+  <div class="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-base-100 rounded-box w-full max-w-xl p-5 shadow-xl border border-base-300">
+      <h3 class="text-xl font-semibold mb-1">Welcome to ScheduLink</h3>
+      <p class="text-sm text-base-content/70 mb-4">Quick start for new accounts.</p>
+
+      <ol class="list-decimal list-inside text-sm flex flex-col gap-2 mb-5">
+        <li>Upload your .ics to your selected schedule.</li>
+        <li>Use <span class="font-semibold">Connect a New Schedule</span> to search by username.</li>
+        <li>Send requests, then check <span class="font-semibold">Incoming requests</span> to accept or deny.</li>
+        <li>After acceptance, friend schedules appear in <span class="font-semibold">Friends</span>.</li>
+      </ol>
+
+      <div class="flex justify-end">
+        <button type="button" class="btn btn-primary btn-sm" (click)="closeOnboarding()">Got it</button>
+      </div>
+    </div>
+  </div>
+}
+
 <div class="drawer">
   <input
     id="my-drawer-3"
@@ -71,6 +91,7 @@
         <button
           type="button"
           class="btn rounded-box w-full"
+          title="This view shows your own selected schedule and upload controls."
           [ngClass]="selectedUserId() === user?.id && !isCompareMode() ? 'btn-neutral' : 'btn-outline'"
           (click)="selectAccount(user.id)"> My Schedule
         </button>
@@ -124,7 +145,7 @@
                 <button 
                   type="button"
                   class="btn btn-sm btn-square btn-outline border-base-300 hover:btn-primary shrink-0"
-                  title="Compare with me"
+                  title="Compare this friend's schedule with yours in one combined view."
                   (click)="compareWithFriend(account.id)">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -194,7 +215,7 @@
                     <div class="flex flex-wrap gap-1 mt-2">
                       <button type="button" class="btn btn-xs btn-outline" (click)="startRename(s)">Rename</button>
                       @if (!s.active) {
-                        <button type="button" class="btn btn-xs btn-outline" (click)="setActiveScheduleId(s.scheduleId)">Set active</button>
+                        <button type="button" class="btn btn-xs btn-outline" title="Friends can view only your active schedule." (click)="setActiveScheduleId(s.scheduleId)">Set active</button>
                       }
                       <button type="button" class="btn btn-xs btn-error btn-outline" (click)="deleteScheduleById(s.scheduleId)">Delete</button>
                     </div>
@@ -214,6 +235,7 @@
                     type="button"
                     class="btn btn-sm btn-primary"
                     [disabled]="creatingSchedule"
+                    title="Create an empty schedule, then import .ics into it."
                     (click)="createEmptySchedule()">
                     Add
                   </button>
@@ -258,7 +280,7 @@
                 <div class="text-xs text-base-content/70 truncate mb-2">{{ req.fromName }}</div>
                 <div class="flex gap-2">
                   <button class="btn btn-xs btn-success" type="button" (click)="acceptRequest(req.friendshipId)">Accept</button>
-                  <button class="btn btn-xs btn-outline" type="button" (click)="denyRequest(req.friendshipId)">Deny</button>
+                  <button class="btn btn-xs btn-outline" type="button" title="Decline and remove this request." (click)="denyRequest(req.friendshipId)">Deny</button>
                 </div>
               </div>
             }
@@ -270,7 +292,7 @@
       </section>
 
       <div class="dropdown dropdown-top w-full mt-auto pt-1">
-        <div tabindex="0" role="button" class="btn btn-primary w-full rounded-box">Connect a New Schedule</div>
+        <div tabindex="0" role="button" class="btn btn-primary w-full rounded-box" title="Search users by username and send a request. They must accept before schedules appear.">Connect a New Schedule</div>
         <div tabindex="-1" class="dropdown-content bg-base-100 rounded-box z-[60] w-full max-h-[min(70vh,20rem)] overflow-y-auto mb-2 p-2 px-3 shadow-lg border border-base-300">
           <h3 class="font-semibold text-lg mb-1">Search Users</h3>
 

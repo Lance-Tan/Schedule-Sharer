@@ -36,7 +36,7 @@ interface IncomingRequest {
 export class DashboardComponent implements OnInit, OnDestroy {
   user: any = null;
   /** Flat rows for the table: one row per timeslot. */
-  scheduleRows: { eventName: string; day: string; startTime: string; endTime: string }[] = [];
+  scheduleRows: { eventName: string; day: string; startTime: string; endTime: string; ownerKey?: string; ownerName?: string }[] = [];
   uploading = false;
   uploadError = '';
   uploadSuccess = '';
@@ -65,6 +65,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   mySchedulesSectionOpen = signal(true);
   incomingSectionOpen = signal(true);
   isCompareMode = signal<boolean>(false);
+  showOnboarding = signal<boolean>(false);
 
   constructor(
     private friendService: FriendService,
@@ -85,6 +86,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadIncomingRequests();
     this.loadSchedules();
     this.startPolling();
+    this.maybeOpenOnboarding();
   }
 
   ngOnDestroy() {
@@ -112,6 +114,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   onDrawerCheckboxChange(checked: boolean) {
     this.sidebarOpen.set(checked);
+  }
+
+  maybeOpenOnboarding() {
+    const onboardingFlag = localStorage.getItem('showSignupOnboarding');
+    if (onboardingFlag === '1') {
+      this.showOnboarding.set(true);
+      localStorage.removeItem('showSignupOnboarding');
+    }
+  }
+
+  closeOnboarding() {
+    this.showOnboarding.set(false);
   }
 
   startPolling() {
@@ -396,9 +410,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       
       let allSlots: any[] = [];
       combined.forEach((event: any) => {
+        const ownerName = (event.ownerName ?? 'Unknown') as string;
+        const ownerKey = ownerName.toLowerCase().trim() || 'unknown';
         event.timeslots.forEach((slot: any) => {
           allSlots.push({
-            name: `${event.eventName} (${event.ownerName})`,
+            name: `${event.eventName}`,
+            ownerKey,
+            ownerName,
             day: slot.day,
             startMins: this.parseTimeToMinutes(slot.startTime),
             endMins: this.parseTimeToMinutes(slot.endTime)
@@ -412,25 +430,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         return a.startMins - b.startMins;
       });
 
-      const mergedRows: any[] = [];
-      if (allSlots.length > 0) {
-        let current = { ...allSlots[0] };
-
-        for (let i = 1; i < allSlots.length; i++) {
-          let next = allSlots[i];
-
-          if (next.day === current.day && next.startMins < current.endMins) {
-            current.name += ` + ${next.name}`;
-            current.endMins = Math.max(current.endMins, next.endMins);
-          } else {
-            mergedRows.push(this.finalizeRow(current));
-            current = { ...next };
-          }
-        }
-        mergedRows.push(this.finalizeRow(current));
-      }
-
-      this.scheduleRows = mergedRows;
+      // Keep separate event rows so grid overlap styling can highlight collisions.
+      this.scheduleRows = allSlots.map((slot) => this.finalizeRow(slot));
       this.isCompareMode.set(true);
       this.selectedUserId.set(friendId);
       this.sidebarOpen.set(false);
@@ -471,7 +472,9 @@ private finalizeRow(item: any) {
     eventName: item.name,
     day: item.day,
     startTime: this.formatMinutes(item.startMins),
-    endTime: this.formatMinutes(item.endMins)
+    endTime: this.formatMinutes(item.endMins),
+    ownerKey: item.ownerKey,
+    ownerName: item.ownerName
   };
 }
 }
