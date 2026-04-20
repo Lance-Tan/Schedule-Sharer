@@ -55,6 +55,8 @@ import java.util.List;
 
 import java.util.Map;
 
+import java.util.ArrayList;
+
 import java.util.Optional;
 
 import java.util.stream.Collectors;
@@ -563,12 +565,74 @@ public class ScheduleController {
 
         List<Event> events = eventRepository.findWithTimeslotsByScheduleId(resolved.getId());
 
-        List<EventDto> body = events.stream().map(this::toDto).collect(Collectors.toList());
+        List<EventDto> body = events.stream()
+            .map(e -> this.toDto(e, "Owner"))
+            .collect(Collectors.toList());
 
         return ResponseEntity.ok(body);
 
     }
 
+    private TimeslotDto calculateIntersection(TimeslotDto a, TimeslotDto b) {
+    TimeslotDto intersection = new TimeslotDto();
+    intersection.setDay(a.getDay());
+    
+    intersection.setStartTime(a.getStartTime().isAfter(b.getStartTime()) 
+        ? a.getStartTime() : b.getStartTime());
+    
+    intersection.setEndTime(a.getEndTime().isBefore(b.getEndTime()) 
+        ? a.getEndTime() : b.getEndTime());
+    
+    return intersection;
+}
+
+    @GetMapping("/compare")
+@Transactional(readOnly = true)
+public ResponseEntity<?> compareSchedules(
+        @RequestParam Long userId,
+        @RequestParam Long friendId) {
+
+    if (!areAcceptedFriends(userId, friendId)) {
+        return ResponseEntity.status(403).body(Map.of("error", "Not friends"));
+    }
+
+    Optional<User> userOpt = userRepository.findById(userId);
+    Optional<User> friendOpt = userRepository.findById(friendId);
+
+    if (userOpt.isEmpty() || friendOpt.isEmpty()) {
+        return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+    }
+
+    Schedule userSchedule = resolveActiveSchedule(userOpt.get());
+    Schedule friendSchedule = resolveActiveSchedule(friendOpt.get());
+
+    List<EventDto> userEvents = userSchedule != null
+            ? eventRepository.findWithTimeslotsByScheduleId(userSchedule.getId())
+                .stream().map(e -> this.toDto(e, "Me")).collect(Collectors.toList())
+            : List.of();
+
+    List<EventDto> friendEvents = friendSchedule != null
+            ? eventRepository.findWithTimeslotsByScheduleId(friendSchedule.getId())
+                .stream().map(e -> this.toDto(e, friendOpt.get().getName())).collect(Collectors.toList())
+            : List.of();
+
+    List<EventDto> combined = new ArrayList<>();
+    combined.addAll(userEvents);
+    combined.addAll(friendEvents);
+
+    combined.sort((a, b) -> {
+        if (a.getTimeslots().isEmpty() || b.getTimeslots().isEmpty()) return 0;
+        int dayComp = a.getTimeslots().get(0).getDay().compareToIgnoreCase(b.getTimeslots().get(0).getDay());
+        if (dayComp != 0) return dayComp;
+        return a.getTimeslots().get(0).getStartTime().compareTo(b.getTimeslots().get(0).getStartTime());
+    });
+
+    return ResponseEntity.ok(Map.of(
+            "userId", userId,
+            "friendId", friendId,
+            "combinedSchedule", combined
+    ));
+}
 
 
     private boolean areAcceptedFriends(Long aId, Long bId) {
@@ -635,37 +699,25 @@ public class ScheduleController {
 
 
 
-    private EventDto toDto(Event e) {
+private EventDto toDto(Event e, String ownerName) {
+    EventDto dto = new EventDto();
+    dto.setEventId(e.getId());
+    dto.setEventName(e.getEventName());
+    
+    dto.setOwnerName(ownerName);
 
-        EventDto dto = new EventDto();
-
-        dto.setEventId(e.getId());
-
-        dto.setEventName(e.getEventName());
-
-        dto.setTimeslots(
-
-                e.getTimeslots().stream()
-
-                        .map(t -> {
-
-                            TimeslotDto td = new TimeslotDto();
-
-                            td.setDay(t.getDay());
-
-                            td.setStartTime(t.getStartTime());
-
-                            td.setEndTime(t.getEndTime());
-
-                            return td;
-
-                        })
-
-                        .collect(Collectors.toList()));
-
-        return dto;
-
-    }
+    dto.setTimeslots(
+            e.getTimeslots().stream()
+                    .map(t -> {
+                        TimeslotDto td = new TimeslotDto();
+                        td.setDay(t.getDay());
+                        td.setStartTime(t.getStartTime());
+                        td.setEndTime(t.getEndTime());
+                        return td;
+                    })
+                    .collect(Collectors.toList()));
+    return dto;
+}
 
 
 

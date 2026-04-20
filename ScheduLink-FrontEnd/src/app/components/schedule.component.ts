@@ -206,6 +206,14 @@ function formatMinutes(minutes: number): string {
       transition: filter 0.15s;
       z-index: 1;
     }
+
+    .ev-name {
+      white-space: normal; /* Allows text to wrap if the box is tall enough */
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2; /* Shows up to 2 lines before elipses (...) */
+      -webkit-box-orient: vertical;
+    }
     .sched-event:hover { filter: brightness(0.92); }
     .ev-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
 
@@ -222,6 +230,7 @@ export class ScheduleComponent implements OnInit, OnChanges {
   @Input() viewerUserId: number | null = null;
   @Input() isOwnSchedule: boolean = false;
   @Input() scheduleId: number | null = null;
+  @Input() externalRows: ScheduleRow[] | null = null;
   @Output() scheduleUpdated = new EventEmitter<void>();
 
   scheduleRows: ScheduleRow[] = [];
@@ -240,14 +249,26 @@ export class ScheduleComponent implements OnInit, OnChanges {
     if (this.userId) this.loadSchedule();
   }
 
-  ngOnChanges(changes: SimpleChanges) {
-    if ((changes['userId'] || changes['scheduleId'] || changes['isOwnSchedule'] || changes['viewerUserId']) && this.userId) {
-      this.loadSchedule();
-    }
+ngOnChanges(changes: SimpleChanges) {
+  const needsReload = 
+    changes['userId'] || 
+    changes['scheduleId'] || 
+    changes['isOwnSchedule'] || 
+    changes['viewerUserId'] || 
+    changes['externalRows'];
+
+  if (needsReload && (this.userId || this.externalRows)) {
+    this.loadSchedule();
   }
+}
 
   // Unchanged from your original
   loadSchedule() {
+    if (this.externalRows && this.externalRows.length > 0) {
+      this.scheduleRows = [...this.externalRows];
+      this.buildGrid();
+      return;
+    }
     if (!this.userId) return;
 
     this.loadError = '';

@@ -64,6 +64,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   friendsFilterQuery = '';
   mySchedulesSectionOpen = signal(true);
   incomingSectionOpen = signal(true);
+  isCompareMode = signal<boolean>(false);
 
   constructor(
     private friendService: FriendService,
@@ -272,11 +273,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   selectAccount(userId: number) {
-    this.selectedUserId.set(userId);
-    if (userId === this.user?.id) {
-      this.loadSchedules();
-    }
+  this.isCompareMode.set(false);
+  this.scheduleRows = []; 
+  this.selectedUserId.set(userId);
+  this.sidebarOpen.set(false);
+  if (userId === this.user?.id) {
+    this.loadSchedules();
   }
+}
 
   onScheduleUpdated() {
     this.loadSchedules();
@@ -384,4 +388,90 @@ export class DashboardComponent implements OnInit, OnDestroy {
       }
     });
   }
+
+  compareWithFriend(friendId: number) {
+  this.scheduleService.compareSchedules(this.user.id, friendId).subscribe({
+    next: (res: any) => {
+      const combined = res.combinedSchedule || [];
+      
+      let allSlots: any[] = [];
+      combined.forEach((event: any) => {
+        event.timeslots.forEach((slot: any) => {
+          allSlots.push({
+            name: `${event.eventName} (${event.ownerName})`,
+            day: slot.day,
+            startMins: this.parseTimeToMinutes(slot.startTime),
+            endMins: this.parseTimeToMinutes(slot.endTime)
+          });
+        });
+      });
+
+      const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'MO', 'TU', 'WE', 'TH', 'FR'];
+      allSlots.sort((a, b) => {
+        if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+        return a.startMins - b.startMins;
+      });
+
+      const mergedRows: any[] = [];
+      if (allSlots.length > 0) {
+        let current = { ...allSlots[0] };
+
+        for (let i = 1; i < allSlots.length; i++) {
+          let next = allSlots[i];
+
+          if (next.day === current.day && next.startMins < current.endMins) {
+            current.name += ` + ${next.name}`;
+            current.endMins = Math.max(current.endMins, next.endMins);
+          } else {
+            mergedRows.push(this.finalizeRow(current));
+            current = { ...next };
+          }
+        }
+        mergedRows.push(this.finalizeRow(current));
+      }
+
+      this.scheduleRows = mergedRows;
+      this.isCompareMode.set(true);
+      this.selectedUserId.set(friendId);
+      this.sidebarOpen.set(false);
+    }
+  });
+}
+
+private parseTimeToMinutes(time: string): number {
+  if (!time || time === '—') return 0;
+  
+  const ampm = /(\d+):(\d+)\s*(AM|PM)/i.exec(time.trim());
+  if (ampm) {
+    let h = parseInt(ampm[1], 10);
+    const m = parseInt(ampm[2], 10);
+    const period = ampm[3].toUpperCase();
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return h * 60 + m;
+  }
+
+  const parts = time.split(':');
+  if (parts.length >= 2) {
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+  }
+  return 0;
+}
+
+private formatMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const period = h < 12 ? 'AM' : 'PM';
+  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${displayH}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
+private finalizeRow(item: any) {
+  return {
+    eventName: item.name,
+    day: item.day,
+    startTime: this.formatMinutes(item.startMins),
+    endTime: this.formatMinutes(item.endMins)
+  };
+}
 }

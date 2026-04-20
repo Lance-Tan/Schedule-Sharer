@@ -22,13 +22,33 @@
       </svg>
     </button>
 
-    <h2 class="font-semibold text-3xl">{{ getSelectedAccountName() }}</h2>
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-col gap-1">
+        <h2 class="font-semibold text-3xl">
+          {{ isCompareMode() ? 'Comparing Schedules' : getSelectedAccountName() }}
+        </h2>
+        <p *ngIf="isCompareMode()" class="text-sm text-base-content/60">
+          Me + {{ getSelectedAccountName() }}
+        </p>
+      </div>
+
+      <button 
+        *ngIf="isCompareMode()" 
+        (click)="selectAccount(user.id)" 
+        class="btn btn-sm btn-ghost gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Exit Comparison
+      </button>
+    </div>
 
     <app-schedule 
       [userId]="selectedUserId()"
       [viewerUserId]="user?.id ?? null"
-      [isOwnSchedule]="curUsr()"
+      [isOwnSchedule]="curUsr() && !isCompareMode()"
       [scheduleId]="curUsr() ? selectedScheduleId() : null"
+      [externalRows]="isCompareMode() ? scheduleRows : null"
       (scheduleUpdated)="onScheduleUpdated()">
     </app-schedule>
   </div>
@@ -51,9 +71,8 @@
         <button
           type="button"
           class="btn rounded-box w-full"
-          [ngClass]="selectedUserId() === user?.id ? 'btn-neutral' : 'btn-outline'"
-          (click)="selectAccount(user.id)">
-          My Schedule
+          [ngClass]="selectedUserId() === user?.id && !isCompareMode() ? 'btn-neutral' : 'btn-outline'"
+          (click)="selectAccount(user.id)"> My Schedule
         </button>
       </section>
 
@@ -93,14 +112,26 @@
               />
             </label>
             @for (account of filteredFriends(); track account.id) {
-              <button
-                type="button"
-                class="btn btn-sm rounded-box w-full justify-start"
-                [ngClass]="selectedUserId() === account.id ? 'btn-neutral' : 'btn-outline'"
-                (click)="selectAccount(account.id)">
-                <span class="truncate">&#64;{{ account.username }} ({{ account.name }})</span>
-              </button>
-            }
+              <div class="flex items-center gap-1 w-full mb-2">
+                <button
+                  type="button"
+                  class="btn btn-sm rounded-box flex-1 justify-start"
+                  [ngClass]="selectedUserId() === account.id && !isCompareMode() ? 'btn-neutral' : 'btn-outline'"
+                  (click)="selectAccount(account.id)">
+                  <span class="truncate">@{{ account.username }} ({{ account.name }})</span>
+                </button>
+
+                <button 
+                  type="button"
+                  class="btn btn-sm btn-square btn-outline border-base-300 hover:btn-primary shrink-0"
+                  title="Compare with me"
+                  (click)="compareWithFriend(account.id)">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                </button>
+              </div>
+}
             @if (friends().length === 0) {
               <p class="text-xs text-base-content/60 px-1 py-1">No friends yet. Add people below.</p>
             } @else if (filteredFriends().length === 0) {
