@@ -138,7 +138,10 @@ function formatMinutes(minutes: number): string {
               [style.width.%]="(100 / ev.laneCount) * ev.laneSpan"
               [style.left.%]="(100 / ev.laneCount) * ev.laneIndex"
               [title]="getEventTooltip(ev)">
-              <span class="ev-name">{{ getVisibleLabel(ev) }}</span>
+              <div class="sched-event-body">
+                <span class="ev-name">{{ getVisibleLabel(ev) }}</span>
+                <span class="ev-time">{{ getEventTimeRange(ev) }}</span>
+              </div>
             </div>
 
           </div>
@@ -218,23 +221,48 @@ function formatMinutes(minutes: number): string {
       min-width: 0;
       border-radius: 5px;
       padding: 2px 4px;
-      font-size: 11px; font-weight: 500; line-height: 1.3;
+      font-size: 11px; font-weight: 500; line-height: 1.25;
       overflow: hidden;
-      display: flex; align-items: flex-start;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
       cursor: default;
       transition: filter 0.15s;
       z-index: 1;
     }
 
-    .ev-name {
-      white-space: normal; /* Allows text to wrap if the box is tall enough */
-      word-break: break-word;
-      display: -webkit-box;
-      -webkit-line-clamp: 2; /* Shows up to 2 lines before elipses (...) */
-      -webkit-box-orient: vertical;
+    .sched-event-body {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+      gap: 1px;
     }
+
+    .ev-name {
+      word-break: break-word;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      min-height: 0;
+    }
+
+    .ev-time {
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 1.15;
+      opacity: 0.88;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+
     .sched-event:hover { filter: brightness(0.92); }
-    .ev-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
 
     .ev-purple { background: rgb(206 203 246 / 0.75); color: #3C3489; }
     .ev-teal   { background: rgb(159 225 203 / 0.75); color: #085041; }
@@ -284,7 +312,7 @@ ngOnChanges(changes: SimpleChanges) {
 
   // Unchanged from your original
   loadSchedule() {
-    if (this.externalRows && this.externalRows.length > 0) {
+    if (this.externalRows != null) {
       this.scheduleRows = [...this.externalRows];
       this.buildGrid();
       return;
@@ -384,15 +412,6 @@ ngOnChanges(changes: SimpleChanges) {
       label: formatMinutes((GRID_START_HOUR + i / SLOTS_PER_HOUR) * 60),
       isHour: i % SLOTS_PER_HOUR === 0,
     }));
-
-    const ownerRows = this.scheduleRows.filter((r) => !!r.ownerKey);
-    const ownerSet = new Set(ownerRows.map((r) => r.ownerKey as string));
-    const ownerLaneMap = new Map<string, number>();
-    let ownerIdx = 0;
-    ownerSet.forEach((key) => {
-      ownerLaneMap.set(key, ownerIdx++);
-    });
-    const ownerLaneCount = Math.max(1, ownerLaneMap.size);
 
     const colorMap = new Map<string, string>();
     let colorIdx = 0;
@@ -523,12 +542,19 @@ ngOnChanges(changes: SimpleChanges) {
     return day === new Date().toLocaleDateString('en-US', { weekday: 'long' });
   }
 
+  private isComparingSchedules(): boolean {
+    return this.externalRows != null;
+  }
+
   getVisibleLabel(ev: GridEvent): string {
-    // In compare mode (multiple owner lanes), show ownership inline.
-    if (ev.laneCount > 1 && ev.ownerLabel) {
+    if (this.isComparingSchedules() && ev.ownerLabel) {
       return `${ev.label} (${ev.ownerLabel})`;
     }
     return ev.label;
+  }
+
+  getEventTimeRange(ev: GridEvent): string {
+    return `${formatMinutes(ev.startMins)} – ${formatMinutes(ev.endMins)}`;
   }
 
   getEventTooltip(ev: GridEvent): string {
@@ -537,7 +563,7 @@ ngOnChanges(changes: SimpleChanges) {
       `Day: ${ev.day}`,
       `Time: ${formatMinutes(ev.startMins)} - ${formatMinutes(ev.endMins)}`
     ];
-    if (ev.ownerLabel) {
+    if (this.isComparingSchedules() && ev.ownerLabel) {
       lines.push(`Owner: ${ev.ownerLabel}`);
     }
     return lines.join('\n');

@@ -33,7 +33,6 @@ export class LoginForm {
     this.authService.login({ email: this.email, password: this.password }).subscribe({
       next: (res: any) => {
         localStorage.setItem('user', JSON.stringify(res));
-        localStorage.setItem('showSignupOnboarding', '1');
         this.router.navigate(['/dashboard']);
       },
       error: () => {

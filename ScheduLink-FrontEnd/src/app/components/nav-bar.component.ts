@@ -15,7 +15,7 @@ import { Subscription } from 'rxjs';
 
         <div class="navbar-end">
             <button
-              *ngIf="signedIn"
+              *ngIf="signedIn && showHelpButton"
               type="button"
               class="btn btn-ghost btn-circle mr-2"
               title="Show onboarding help"
@@ -62,6 +62,7 @@ export class NavBar implements OnInit, OnDestroy {
     @Output() helpClicked = new EventEmitter<void>();
     profileButtonText: string = 'Profile';
     profileButtonLink: string = '/account-settings';
+    showHelpButton: boolean = true;
     isDarkMode: boolean = false;
     private routerSubscription!: Subscription;
 
@@ -85,9 +86,11 @@ export class NavBar implements OnInit, OnDestroy {
         if (currentUrl.includes('/account-settings')) {
             this.profileButtonText = 'Dashboard';
             this.profileButtonLink = '/dashboard';
+            this.showHelpButton = false;
         } else {
             this.profileButtonText = 'Profile';
             this.profileButtonLink = '/account-settings';
+            this.showHelpButton = true;
         }
     }
     

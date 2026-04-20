@@ -151,15 +151,6 @@
         </div>
         
         <div>
-          <label class="block text-sm font-semibold mb-2">Default Timezone</label>
-          @if (!isEditing) {
-            <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80">{{ user?.timezone || 'UTC (Default)' }}</div>
-          } @else {
-            <input type="text" class="input input-bordered w-full" [(ngModel)]="editForm.timezone" placeholder="e.g. EST, UTC-5" />
-          }
-        </div>
-        
-        <div>
           <label class="block text-sm font-semibold mb-2">Friend Code Link</label>
           <div class="bg-base-200/50 p-3 rounded-lg text-base-content/80 truncate">schedulink.app/u/{{ isEditing ? editForm.username : user?.username }}</div>
         </div>

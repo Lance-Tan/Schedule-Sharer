@@ -77,4 +77,12 @@ export class ScheduleService {
 
     return this.http.get<any>(`${this.baseUrl}/compare`, { params });
   }
+
+  compareScheduleGroup(userId: number, groupId: number) {
+    const params = new HttpParams()
+      .set('userId', String(userId))
+      .set('groupId', String(groupId));
+
+    return this.http.get<any>(`${this.baseUrl}/compare-group`, { params });
+  }
 }

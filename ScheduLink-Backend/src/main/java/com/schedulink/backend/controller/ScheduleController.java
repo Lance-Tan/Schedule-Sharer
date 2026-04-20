@@ -24,9 +24,16 @@ import com.schedulink.backend.model.Timeslot;
 
 import com.schedulink.backend.model.User;
 
+import com.schedulink.backend.model.ScheduleGroup;
+import com.schedulink.backend.model.ScheduleGroupMember;
+
 import com.schedulink.backend.repository.EventRepository;
 
 import com.schedulink.backend.repository.FriendshipRepository;
+
+import com.schedulink.backend.repository.ScheduleGroupMemberRepository;
+
+import com.schedulink.backend.repository.ScheduleGroupRepository;
 
 import com.schedulink.backend.repository.ScheduleRepository;
 
@@ -94,6 +101,18 @@ public class ScheduleController {
     @Autowired
 
     private FriendshipRepository friendshipRepository;
+
+
+
+    @Autowired
+
+    private ScheduleGroupRepository scheduleGroupRepository;
+
+
+
+    @Autowired
+
+    private ScheduleGroupMemberRepository scheduleGroupMemberRepository;
 
     @GetMapping("/list")
 
@@ -633,6 +652,72 @@ public ResponseEntity<?> compareSchedules(
             "combinedSchedule", combined
     ));
 }
+
+    @GetMapping("/compare-group")
+    @Transactional(readOnly = true)
+    public ResponseEntity<?> compareScheduleGroup(
+            @RequestParam Long userId,
+            @RequestParam Long groupId) {
+
+        Optional<ScheduleGroup> gOpt = scheduleGroupRepository.findByIdAndOwner_Id(groupId, userId);
+        if (gOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Group not found"));
+        }
+        ScheduleGroup group = gOpt.get();
+        Optional<User> ownerOpt = userRepository.findById(userId);
+        if (ownerOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+        }
+        User owner = ownerOpt.get();
+
+        Schedule userSchedule = resolveActiveSchedule(owner);
+        List<EventDto> combined = new ArrayList<>();
+        if (userSchedule != null) {
+            combined.addAll(
+                    eventRepository.findWithTimeslotsByScheduleId(userSchedule.getId()).stream()
+                            .map(e -> this.toDto(e, "Me"))
+                            .collect(Collectors.toList()));
+        }
+
+        List<ScheduleGroupMember> members = scheduleGroupMemberRepository.findByGroup_IdWithUser(groupId);
+        members.sort((a, b) -> Long.compare(a.getUser().getId(), b.getUser().getId()));
+
+        for (ScheduleGroupMember row : members) {
+            User member = row.getUser();
+            if (!areAcceptedFriends(userId, member.getId())) {
+                continue;
+            }
+            Schedule friendSchedule = resolveActiveSchedule(member);
+            if (friendSchedule == null) {
+                continue;
+            }
+            String label = member.getName() != null && !member.getName().isBlank()
+                    ? member.getName()
+                    : member.getUsername();
+            combined.addAll(
+                    eventRepository.findWithTimeslotsByScheduleId(friendSchedule.getId()).stream()
+                            .map(e -> this.toDto(e, label))
+                            .collect(Collectors.toList()));
+        }
+
+        combined.sort((a, b) -> {
+            if (a.getTimeslots().isEmpty() || b.getTimeslots().isEmpty()) {
+                return 0;
+            }
+            int dayComp = a.getTimeslots().get(0).getDay().compareToIgnoreCase(b.getTimeslots().get(0).getDay());
+            if (dayComp != 0) {
+                return dayComp;
+            }
+            return a.getTimeslots().get(0).getStartTime().compareTo(b.getTimeslots().get(0).getStartTime());
+        });
+
+        return ResponseEntity.ok(Map.of(
+                "userId", userId,
+                "groupId", groupId,
+                "groupName", group.getName(),
+                "combinedSchedule", combined
+        ));
+    }
 
 
     private boolean areAcceptedFriends(Long aId, Long bId) {
