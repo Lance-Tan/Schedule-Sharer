@@ -234,7 +234,7 @@ function formatMinutes(minutes: number): string {
                     [attr.aria-expanded]="isDrawerOpenFor(ev)"
                     aria-haspopup="dialog"
                     (click)="openCollisionDrawer($event, ev)">
-                    Collision · {{ ev.collisionTotal }}
+                    Conflict · {{ ev.collisionTotal }}
                   </button>
                 </div>
                 <span class="ev-time">{{ getEventTimeRange(ev) }}</span>
@@ -1059,7 +1059,7 @@ ngOnChanges(changes: SimpleChanges) {
         `Day: ${ev.day}`,
         `Overlap window: ${formatMinutes(ev.windowStartMins)} – ${formatMinutes(ev.windowEndMins)}`,
         '',
-        `Conflicts with ${ev.collisionTotal} classes — click “Collision · ${ev.collisionTotal}” for details.`,
+        `Conflicts with ${ev.collisionTotal} classes — click “Conflict · ${ev.collisionTotal}” for details.`,
         '',
       ];
       const sorted = [...ev.collisionMembers].sort((a, b) =>
