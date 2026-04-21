@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -14,6 +14,19 @@ import { Subscription } from 'rxjs';
         </div>
 
         <div class="navbar-end">
+            <button
+              *ngIf="signedIn && showHelpButton"
+              type="button"
+              class="btn btn-ghost btn-circle mr-2"
+              title="Show onboarding help"
+              aria-label="Show onboarding help"
+              (click)="helpClicked.emit()"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 1.917-2 3.522-2 1.933 0 3.5 1.343 3.5 3 0 1.163-.79 2.171-1.943 2.665-.873.374-1.557.95-1.557 1.835V15M12 19h.01" />
+              </svg>
+            </button>
+
             <!-- Theme Toggle -->
             <label class="swap swap-rotate mr-4 btn btn-ghost btn-circle">
               <input type="checkbox" [checked]="isDarkMode" (change)="toggleTheme()" />
@@ -46,8 +59,10 @@ import { Subscription } from 'rxjs';
 
 export class NavBar implements OnInit, OnDestroy {
     @Input() signedIn: boolean = false;
+    @Output() helpClicked = new EventEmitter<void>();
     profileButtonText: string = 'Profile';
     profileButtonLink: string = '/account-settings';
+    showHelpButton: boolean = true;
     isDarkMode: boolean = false;
     private routerSubscription!: Subscription;
 
@@ -71,9 +86,11 @@ export class NavBar implements OnInit, OnDestroy {
         if (currentUrl.includes('/account-settings')) {
             this.profileButtonText = 'Dashboard';
             this.profileButtonLink = '/dashboard';
+            this.showHelpButton = false;
         } else {
             this.profileButtonText = 'Profile';
             this.profileButtonLink = '/account-settings';
+            this.showHelpButton = true;
         }
     }
     

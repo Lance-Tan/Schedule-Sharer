@@ -8,6 +8,7 @@ import { ScheduleComponent } from '../../components/schedule.component';
 import { FriendService } from '../../services/friend.service';
 import { UserService } from '../../services/user.service';
 import { ScheduleService, ScheduleSummary } from '../../services/schedule.service';
+import { GroupService, ScheduleGroupDto } from '../../services/group.service';
 
 interface Account {
   id: number;
@@ -36,7 +37,7 @@ interface IncomingRequest {
 export class DashboardComponent implements OnInit, OnDestroy {
   user: any = null;
   /** Flat rows for the table: one row per timeslot. */
-  scheduleRows: { eventName: string; day: string; startTime: string; endTime: string }[] = [];
+  scheduleRows: { eventName: string; day: string; startTime: string; endTime: string; ownerKey?: string; ownerName?: string }[] = [];
   uploading = false;
   uploadError = '';
   uploadSuccess = '';
@@ -64,12 +65,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
   friendsFilterQuery = '';
   mySchedulesSectionOpen = signal(true);
   incomingSectionOpen = signal(true);
+  groupsSectionOpen = signal(true);
   isCompareMode = signal<boolean>(false);
+  compareGroupMeta = signal<{ name: string; memberCount: number } | null>(null);
+  groups = signal<ScheduleGroupDto[]>([]);
+  newGroupName = '';
+  creatingGroup = false;
+  groupActionMessage = '';
+  expandedGroupId = signal<number | null>(null);
+  memberPickByGroup = signal<Record<number, number | null>>({});
+  renamingGroupId = signal<number | null>(null);
+  renameGroupDraft = '';
+  showOnboarding = signal<boolean>(false);
 
   constructor(
     private friendService: FriendService,
     private userService: UserService,
     private scheduleService: ScheduleService,
+    private groupService: GroupService,
     private router: Router
   ) {}
 
@@ -82,9 +95,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.user = JSON.parse(stored);
     this.selectedUserId.set(this.user?.id ?? null);
     this.loadFriends();
+    this.loadGroups();
     this.loadIncomingRequests();
     this.loadSchedules();
     this.startPolling();
+    this.maybeOpenOnboarding();
   }
 
   ngOnDestroy() {
@@ -110,8 +125,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.incomingSectionOpen.update((v) => !v);
   }
 
+  toggleGroupsSection() {
+    this.groupsSectionOpen.update((v) => !v);
+  }
+
   onDrawerCheckboxChange(checked: boolean) {
     this.sidebarOpen.set(checked);
+  }
+
+  maybeOpenOnboarding() {
+    const onboardingFlag = localStorage.getItem('showSignupOnboarding');
+    if (onboardingFlag === '1') {
+      this.showOnboarding.set(true);
+      localStorage.removeItem('showSignupOnboarding');
+    }
+  }
+
+  closeOnboarding() {
+    this.showOnboarding.set(false);
+  }
+
+  reopenOnboarding() {
+    this.showOnboarding.set(true);
   }
 
   startPolling() {
@@ -273,14 +308,146 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   selectAccount(userId: number) {
-  this.isCompareMode.set(false);
-  this.scheduleRows = []; 
-  this.selectedUserId.set(userId);
-  this.sidebarOpen.set(false);
-  if (userId === this.user?.id) {
-    this.loadSchedules();
+    this.isCompareMode.set(false);
+    this.compareGroupMeta.set(null);
+    this.scheduleRows = [];
+    this.selectedUserId.set(userId);
+    this.sidebarOpen.set(false);
+    if (userId === this.user?.id) {
+      this.loadSchedules();
+    }
   }
-}
+
+  loadGroups() {
+    if (!this.user?.id) return;
+    this.groupActionMessage = '';
+    this.groupService.list(this.user.id).subscribe({
+      next: (rows) => {
+        this.groups.set(Array.isArray(rows) ? rows : []);
+      },
+      error: () => {
+        this.groups.set([]);
+      }
+    });
+  }
+
+  createGroup() {
+    if (!this.user?.id) return;
+    const name = (this.newGroupName ?? '').trim();
+    if (!name) return;
+    this.creatingGroup = true;
+    this.groupActionMessage = '';
+    this.groupService.create(this.user.id, name).subscribe({
+      next: () => {
+        this.newGroupName = '';
+        this.creatingGroup = false;
+        this.loadGroups();
+      },
+      error: () => {
+        this.creatingGroup = false;
+        this.groupActionMessage = 'Could not create group.';
+      }
+    });
+  }
+
+  toggleExpandGroup(groupId: number) {
+    this.expandedGroupId.update((cur) => (cur === groupId ? null : groupId));
+    this.renamingGroupId.set(null);
+  }
+
+  startRenameGroup(g: ScheduleGroupDto) {
+    this.renamingGroupId.set(g.groupId);
+    this.renameGroupDraft = g.name;
+  }
+
+  cancelRenameGroup() {
+    this.renamingGroupId.set(null);
+    this.renameGroupDraft = '';
+  }
+
+  saveRenameGroup() {
+    if (!this.user?.id) return;
+    const gid = this.renamingGroupId();
+    if (gid == null) return;
+    const name = (this.renameGroupDraft ?? '').trim();
+    if (!name) return;
+    this.groupService.rename(gid, this.user.id, name).subscribe({
+      next: () => {
+        this.cancelRenameGroup();
+        this.loadGroups();
+      },
+      error: () => {
+        this.groupActionMessage = 'Could not rename group.';
+      }
+    });
+  }
+
+  deleteGroup(groupId: number) {
+    if (!this.user?.id) return;
+    this.groupActionMessage = '';
+    this.groupService.delete(groupId, this.user.id).subscribe({
+      next: () => {
+        this.expandedGroupId.update((cur) => (cur === groupId ? null : cur));
+        this.loadGroups();
+      },
+      error: () => {
+        this.groupActionMessage = 'Could not delete group.';
+      }
+    });
+  }
+
+  setMemberPick(groupId: number, userId: number | null) {
+    this.memberPickByGroup.update((m) => ({ ...m, [groupId]: userId }));
+  }
+
+  addMemberToGroup(groupId: number) {
+    if (!this.user?.id) return;
+    const pick = this.memberPickByGroup()[groupId];
+    if (pick == null) return;
+    this.groupActionMessage = '';
+    this.groupService.addMember(groupId, this.user.id, pick).subscribe({
+      next: () => {
+        this.setMemberPick(groupId, null);
+        this.loadGroups();
+      },
+      error: (err: any) => {
+        const msg = err?.error?.error;
+        this.groupActionMessage =
+          typeof msg === 'string' && msg.trim() ? msg : 'Could not add member.';
+      }
+    });
+  }
+
+  removeMemberFromGroup(groupId: number, memberUserId: number) {
+    if (!this.user?.id) return;
+    this.groupActionMessage = '';
+    this.groupService.removeMember(groupId, this.user.id, memberUserId).subscribe({
+      next: () => this.loadGroups(),
+      error: () => {
+        this.groupActionMessage = 'Could not remove member.';
+      }
+    });
+  }
+
+  friendsNotInGroup(g: ScheduleGroupDto) {
+    const ids = new Set((g.members ?? []).map((m) => m.id));
+    return this.friends().filter((f) => !ids.has(f.id));
+  }
+
+  getCompareSubtitle(): string {
+    if (!this.isCompareMode()) return '';
+    const meta = this.compareGroupMeta();
+    if (meta) {
+      const n = meta.memberCount;
+      const people = n === 1 ? 'person' : 'people';
+      return `Me + members of "${meta.name}" (${n} ${people})`;
+    }
+    const fid = this.selectedUserId();
+    if (fid == null || fid === this.user?.id) return '';
+    const account = this.friends().find((a) => a.id === fid);
+    const label = account?.name || account?.username || 'friend';
+    return `Me + ${label}`;
+  }
 
   onScheduleUpdated() {
     this.loadSchedules();
@@ -390,53 +557,61 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   compareWithFriend(friendId: number) {
-  this.scheduleService.compareSchedules(this.user.id, friendId).subscribe({
-    next: (res: any) => {
-      const combined = res.combinedSchedule || [];
-      
-      let allSlots: any[] = [];
-      combined.forEach((event: any) => {
-        event.timeslots.forEach((slot: any) => {
-          allSlots.push({
-            name: `${event.eventName} (${event.ownerName})`,
-            day: slot.day,
-            startMins: this.parseTimeToMinutes(slot.startTime),
-            endMins: this.parseTimeToMinutes(slot.endTime)
-          });
+    this.compareGroupMeta.set(null);
+    this.scheduleService.compareSchedules(this.user.id, friendId).subscribe({
+      next: (res: any) => {
+        this.applyCombinedSchedule(res);
+        this.isCompareMode.set(true);
+        this.selectedUserId.set(friendId);
+        this.sidebarOpen.set(false);
+      }
+    });
+  }
+
+  compareWithGroup(g: ScheduleGroupDto) {
+    if (!this.user?.id) return;
+    this.scheduleService.compareScheduleGroup(this.user.id, g.groupId).subscribe({
+      next: (res: any) => {
+        const memberCount = (g.members ?? []).length;
+        this.compareGroupMeta.set({ name: g.name, memberCount });
+        this.applyCombinedSchedule(res);
+        this.isCompareMode.set(true);
+        this.selectedUserId.set(this.user.id);
+        this.sidebarOpen.set(false);
+      },
+      error: () => {
+        this.groupActionMessage = 'Could not load group comparison.';
+      }
+    });
+  }
+
+  private applyCombinedSchedule(res: any) {
+    const combined = res?.combinedSchedule ?? [];
+    const allSlots: any[] = [];
+    combined.forEach((event: any) => {
+      const ownerName = (event.ownerName ?? 'Unknown') as string;
+      const ownerKey = ownerName.toLowerCase().trim() || 'unknown';
+      const slots = event.timeslots ?? [];
+      slots.forEach((slot: any) => {
+        allSlots.push({
+          name: `${event.eventName}`,
+          ownerKey,
+          ownerName,
+          day: slot.day,
+          startMins: this.parseTimeToMinutes(slot.startTime),
+          endMins: this.parseTimeToMinutes(slot.endTime)
         });
       });
+    });
 
-      const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'MO', 'TU', 'WE', 'TH', 'FR'];
-      allSlots.sort((a, b) => {
-        if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
-        return a.startMins - b.startMins;
-      });
+    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'MO', 'TU', 'WE', 'TH', 'FR'];
+    allSlots.sort((a, b) => {
+      if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+      return a.startMins - b.startMins;
+    });
 
-      const mergedRows: any[] = [];
-      if (allSlots.length > 0) {
-        let current = { ...allSlots[0] };
-
-        for (let i = 1; i < allSlots.length; i++) {
-          let next = allSlots[i];
-
-          if (next.day === current.day && next.startMins < current.endMins) {
-            current.name += ` + ${next.name}`;
-            current.endMins = Math.max(current.endMins, next.endMins);
-          } else {
-            mergedRows.push(this.finalizeRow(current));
-            current = { ...next };
-          }
-        }
-        mergedRows.push(this.finalizeRow(current));
-      }
-
-      this.scheduleRows = mergedRows;
-      this.isCompareMode.set(true);
-      this.selectedUserId.set(friendId);
-      this.sidebarOpen.set(false);
-    }
-  });
-}
+    this.scheduleRows = allSlots.map((slot) => this.finalizeRow(slot));
+  }
 
 private parseTimeToMinutes(time: string): number {
   if (!time || time === '—') return 0;
@@ -471,7 +646,9 @@ private finalizeRow(item: any) {
     eventName: item.name,
     day: item.day,
     startTime: this.formatMinutes(item.startMins),
-    endTime: this.formatMinutes(item.endMins)
+    endTime: this.formatMinutes(item.endMins),
+    ownerKey: item.ownerKey,
+    ownerName: item.ownerName
   };
 }
 }
