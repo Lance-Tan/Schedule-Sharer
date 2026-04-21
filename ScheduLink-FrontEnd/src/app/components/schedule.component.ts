@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ScheduleService } from '../services/schedule.service';
@@ -12,6 +12,14 @@ interface ScheduleRow {
   ownerName?: string;
 }
 
+interface CollisionMember {
+  label: string;
+  ownerLabel?: string;
+  startMins: number;
+  endMins: number;
+  colorClass: string;
+}
+
 interface GridEvent {
   id: number;
   label: string;
@@ -22,16 +30,32 @@ interface GridEvent {
   colIndex: number;
   rowStart: number;
   rowSpan: number;
+  marginTopPx: number;
+  heightPx: number;
   colorClass: string;
   isOverlap: boolean;
-  laneIndex: number;
-  laneCount: number;
-  laneSpan: number;
+  collisionTotal: number;
+  collisionMembers: CollisionMember[];
+  windowStartMins: number;
+  windowEndMins: number;
+}
+
+interface CollisionDrawerModel {
+  sourceId: number;
+  day: string;
+  windowStartMins: number;
+  windowEndMins: number;
+  members: CollisionMember[];
 }
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR   = 21;
-const SLOTS_PER_HOUR  = 2;
+/** Slots per hour on the grid (4 = 15-minute rows; avoids false “collisions” from half-hour row overlap). */
+const SLOTS_PER_HOUR = 4;
+const GRID_BODY_SLOT_ROWS = (GRID_END_HOUR - GRID_START_HOUR) * SLOTS_PER_HOUR;
+const SLOT_MINUTES = 60 / SLOTS_PER_HOUR;
+/** Must match `.sched-grid` body row track height (`repeat(..., 12px)`). */
+const SLOT_HEIGHT_PX = 12;
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -60,9 +84,41 @@ function parseTimeToMinutes(time: string): number {
   return 0;
 }
 
-function minutesToGridRow(minutes: number): number {
+/** First grid body row (slot) that intersects this instant. */
+function minutesToGridRowStart(minutes: number): number {
   const offset = minutes - GRID_START_HOUR * 60;
-  return Math.round((offset / 60) * SLOTS_PER_HOUR);
+  return Math.max(0, Math.floor((offset / 60) * SLOTS_PER_HOUR));
+}
+
+/**
+ * Row index just past the last slot that should contain this end time
+ * (treats the displayed end time as inclusive through that minute).
+ */
+function minutesToGridRowEndExclusive(minutes: number): number {
+  const offset = minutes - GRID_START_HOUR * 60;
+  return Math.ceil((offset / 60) * SLOTS_PER_HOUR);
+}
+
+/**
+ * Pixel offset from the top of the first spanned row to `startMins`, and height for
+ * [startMins, endMins], so events do not paint full slot height when they start/end mid-slot.
+ */
+function eventVisualMetrics(
+  startMins: number,
+  endMins: number,
+  rowStart: number,
+  rowSpan: number
+): { marginTopPx: number; heightPx: number } {
+  const gridOriginMins = GRID_START_HOUR * 60;
+  const firstRowStartMins = gridOriginMins + rowStart * SLOT_MINUTES;
+  const marginTopPx =
+    (Math.max(0, startMins - firstRowStartMins) / SLOT_MINUTES) * SLOT_HEIGHT_PX;
+  const slotSpanPx = rowSpan * SLOT_HEIGHT_PX;
+  const maxBodyPx = Math.max(0, slotSpanPx - marginTopPx);
+  const durationMin = Math.max(0, endMins - startMins);
+  const rawHeight = (durationMin / SLOT_MINUTES) * SLOT_HEIGHT_PX;
+  const heightPx = Math.max(14, Math.min(rawHeight, maxBodyPx || rawHeight));
+  return { marginTopPx, heightPx };
 }
 
 function formatMinutes(minutes: number): string {
@@ -109,7 +165,10 @@ function formatMinutes(minutes: number): string {
 
         <!-- GRID VIEW -->
         <div class="sched-scroll">
-          <div class="sched-grid" [style.--day-count]="visibleDays.length">
+          <div
+            class="sched-grid"
+            [style.--day-count]="visibleDays.length"
+            [style.--slot-rows]="gridBodySlotRows">
 
             <div class="corner-cell"></div>
 
@@ -133,13 +192,26 @@ function formatMinutes(minutes: number): string {
             <div
               *ngFor="let ev of gridEvents"
               class="sched-event {{ ev.colorClass }}"
+              [class.sched-event-overlap]="ev.isOverlap"
               [style.grid-column]="ev.colIndex + 2"
               [style.grid-row]="(ev.rowStart + 2) + ' / span ' + ev.rowSpan"
-              [style.width.%]="(100 / ev.laneCount) * ev.laneSpan"
-              [style.left.%]="(100 / ev.laneCount) * ev.laneIndex"
+              [style.margin-top.px]="ev.marginTopPx"
+              [style.height.px]="ev.heightPx"
+              [style.z-index]="ev.isOverlap ? 4 : ev.startMins"
               [title]="getEventTooltip(ev)">
               <div class="sched-event-body">
-                <span class="ev-name">{{ getVisibleLabel(ev) }}</span>
+                <div class="ev-title-row">
+                  <span class="ev-name">{{ getVisibleLabel(ev) }}</span>
+                  <button
+                    *ngIf="ev.collisionTotal > 1"
+                    type="button"
+                    class="collision-chip"
+                    [attr.aria-expanded]="isDrawerOpenFor(ev)"
+                    aria-haspopup="dialog"
+                    (click)="openCollisionDrawer($event, ev)">
+                    Collision · {{ ev.collisionTotal }}
+                  </button>
+                </div>
                 <span class="ev-time">{{ getEventTimeRange(ev) }}</span>
               </div>
             </div>
@@ -147,6 +219,43 @@ function formatMinutes(minutes: number): string {
           </div>
         </div>
       </ng-container>
+
+      <!-- Collision detail drawer -->
+      <div
+        *ngIf="collisionDrawer"
+        class="collision-drawer-backdrop"
+        role="presentation"
+        (click)="closeCollisionDrawer()">
+        <aside
+          class="collision-drawer-panel"
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-labelledby]="'collision-drawer-title'"
+          (click)="$event.stopPropagation()">
+          <div class="collision-drawer-head">
+            <div>
+              <h2 id="collision-drawer-title" class="collision-drawer-title">Conflicting classes</h2>
+              <p class="collision-drawer-sub">
+                {{ collisionDrawer.day }} · {{ formatRange(collisionDrawer.windowStartMins, collisionDrawer.windowEndMins) }}
+              </p>
+            </div>
+            <button type="button" class="collision-drawer-close" (click)="closeCollisionDrawer()" aria-label="Close">
+              ×
+            </button>
+          </div>
+          <ul class="collision-drawer-list">
+            <li *ngFor="let m of collisionDrawer.members" class="collision-drawer-item">
+              <span class="collision-drawer-swatch {{ m.colorClass }}"></span>
+              <div class="collision-drawer-item-body">
+                <div class="collision-drawer-item-name">
+                  {{ m.label }}<span *ngIf="isComparingSchedules() && m.ownerLabel" class="collision-drawer-item-owner"> ({{ m.ownerLabel }})</span>
+                </div>
+                <div class="collision-drawer-item-time">{{ formatRange(m.startMins, m.endMins) }}</div>
+              </div>
+            </li>
+          </ul>
+        </aside>
+      </div>
     </div>
   `,
   styles: [`
@@ -165,7 +274,8 @@ function formatMinutes(minutes: number): string {
       display: grid;
       /* Fill available width, but keep a minimum readable day width. */
       grid-template-columns: 52px repeat(var(--day-count, 5), minmax(120px, 1fr));
-      grid-template-rows: 36px repeat(28, 24px);
+      /* Row height chosen so total body height stays close to the old 28×24px half-hour grid */
+      grid-template-rows: 36px repeat(var(--slot-rows, 56), 12px);
       width: 100%;
       min-width: 0;
       position: relative;
@@ -204,7 +314,7 @@ function formatMinutes(minutes: number): string {
       color: oklch(var(--bc) / 0.4);
       background: oklch(var(--b1));
       border-right: 1px solid oklch(var(--bc) / 0.12);
-      transform: translateY(-6px);
+      transform: translateY(-4px);
     }
 
     .bg-cell {
@@ -214,15 +324,17 @@ function formatMinutes(minutes: number): string {
     .bg-cell.hour-line { border-bottom-color: oklch(var(--bc) / 0.12); }
 
     .sched-event {
-      margin: 1px 0;
+      align-self: start;
+      margin: 0 2px;
       position: relative;
-      justify-self: start;
+      justify-self: stretch;
+      width: 100%;
       box-sizing: border-box;
       min-width: 0;
       border-radius: 5px;
       padding: 2px 4px;
       font-size: 11px; font-weight: 500; line-height: 1.25;
-      overflow: hidden;
+      overflow: visible;
       display: flex;
       flex-direction: column;
       align-items: stretch;
@@ -239,6 +351,14 @@ function formatMinutes(minutes: number): string {
       flex: 1;
       overflow: hidden;
       gap: 1px;
+    }
+
+    .ev-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 4px;
+      min-width: 0;
     }
 
     .ev-name {
@@ -262,7 +382,147 @@ function formatMinutes(minutes: number): string {
       flex-shrink: 0;
     }
 
+    .collision-chip {
+      flex-shrink: 0;
+      border: 1px solid oklch(0.72 0.11 75);
+      margin: 0;
+      padding: 0 6px;
+      height: 18px;
+      line-height: 16px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      color: oklch(0.32 0.09 75);
+      background: oklch(0.94 0.05 85);
+      white-space: nowrap;
+    }
+    .collision-chip:hover { background: oklch(0.9 0.07 80); }
+
+    .collision-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      background: oklch(0% 0 0 / 0.4);
+      display: flex;
+      justify-content: flex-end;
+      align-items: stretch;
+      padding: 0;
+    }
+
+    /* Solid sidebar: darker surface in light theme, lighter elevated surface in dark theme */
+    .collision-drawer-panel {
+      width: min(100%, 380px);
+      max-height: 100%;
+      overflow: auto;
+      background: oklch(0.94 0.014 264);
+      border-left: 1px solid oklch(0.82 0.02 264);
+      box-shadow: -12px 0 40px oklch(0% 0 0 / 0.18);
+      display: flex;
+      flex-direction: column;
+    }
+
+    :host-context([data-theme='dark']) .collision-drawer-panel {
+      background: oklch(0.36 0.022 264);
+      border-left-color: oklch(0.46 0.024 264);
+    }
+
+    .collision-drawer-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid oklch(0.82 0.018 264);
+      position: sticky;
+      top: 0;
+      background: oklch(0.94 0.014 264);
+      z-index: 1;
+    }
+
+    :host-context([data-theme='dark']) .collision-drawer-head {
+      background: oklch(0.36 0.022 264);
+      border-bottom-color: oklch(0.46 0.024 264);
+    }
+
+    .collision-drawer-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: oklch(var(--bc) / 0.95);
+    }
+
+    .collision-drawer-sub {
+      margin: 4px 0 0;
+      font-size: 0.8rem;
+      color: oklch(var(--bc) / 0.55);
+    }
+
+    .collision-drawer-close {
+      border: 0;
+      background: transparent;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      color: oklch(var(--bc) / 0.55);
+      padding: 0 4px;
+    }
+    .collision-drawer-close:hover { color: oklch(var(--bc) / 0.85); }
+
+    .collision-drawer-list {
+      list-style: none;
+      margin: 0;
+      padding: 8px 12px 20px;
+    }
+
+    .collision-drawer-item {
+      display: flex;
+      gap: 10px;
+      padding: 10px 8px;
+      border-radius: 8px;
+      border: 1px solid oklch(0.86 0.016 264);
+      margin-bottom: 8px;
+      background: oklch(0.985 0.006 264);
+    }
+
+    :host-context([data-theme='dark']) .collision-drawer-item {
+      background: oklch(0.42 0.024 264);
+      border-color: oklch(0.5 0.026 264);
+    }
+
+    .collision-drawer-swatch {
+      flex-shrink: 0;
+      width: 6px;
+      border-radius: 3px;
+      align-self: stretch;
+      min-height: 36px;
+    }
+
+    .collision-drawer-item-body { min-width: 0; flex: 1; }
+
+    .collision-drawer-item-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      line-height: 1.3;
+      color: oklch(var(--bc) / 0.92);
+    }
+
+    .collision-drawer-item-owner {
+      font-weight: 500;
+      color: oklch(var(--bc) / 0.55);
+    }
+
+    .collision-drawer-item-time {
+      margin-top: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: oklch(var(--bc) / 0.5);
+    }
+
     .sched-event:hover { filter: brightness(0.92); }
+
+    .sched-event-overlap { z-index: 2; }
 
     .ev-purple { background: rgb(206 203 246 / 0.75); color: #3C3489; }
     .ev-teal   { background: rgb(159 225 203 / 0.75); color: #085041; }
@@ -270,6 +530,13 @@ function formatMinutes(minutes: number): string {
     .ev-coral  { background: rgb(245 196 179 / 0.75); color: #712B13; }
     .ev-amber  { background: rgb(250 199 117 / 0.75); color: #633806; }
     .ev-green  { background: rgb(192 221 151 / 0.75); color: #27500A; }
+
+    .collision-drawer-swatch.ev-purple { background: rgb(206 203 246); }
+    .collision-drawer-swatch.ev-teal   { background: rgb(159 225 203); }
+    .collision-drawer-swatch.ev-blue   { background: rgb(181 212 244); }
+    .collision-drawer-swatch.ev-coral  { background: rgb(245 196 179); }
+    .collision-drawer-swatch.ev-amber  { background: rgb(250 199 117); }
+    .collision-drawer-swatch.ev-green  { background: rgb(192 221 151); }
 
   `]
 })
@@ -290,8 +557,17 @@ export class ScheduleComponent implements OnInit, OnChanges {
   visibleDays: string[] = [];
   timeSlots: { label: string; isHour: boolean }[] = [];
   gridEvents: GridEvent[] = [];
+  collisionDrawer: CollisionDrawerModel | null = null;
+  readonly gridBodySlotRows = GRID_BODY_SLOT_ROWS;
 
   constructor(private scheduleService: ScheduleService) {}
+
+  @HostListener('document:keydown.escape')
+  onEscapeCloseDrawer(): void {
+    if (this.collisionDrawer) {
+      this.closeCollisionDrawer();
+    }
+  }
 
   ngOnInit() {
     if (this.userId) this.loadSchedule();
@@ -351,9 +627,6 @@ ngOnChanges(changes: SimpleChanges) {
         }
 
         this.buildGrid();
-        console.log('scheduleRows', this.scheduleRows);
-        console.log('gridEvents', this.gridEvents);
-        console.log('visibleDays', this.visibleDays);
       },
       error: (err) => {
         console.error('Failed to load schedule:', err);
@@ -417,17 +690,26 @@ ngOnChanges(changes: SimpleChanges) {
     let colorIdx = 0;
 
     let nextEventId = 1;
-    const events = this.scheduleRows
+    type RawEv = {
+      id: number;
+      label: string;
+      ownerLabel?: string;
+      ownerKey?: string;
+      day: string;
+      startMins: number;
+      endMins: number;
+      colIndex: number;
+      colorClass: string;
+    };
+
+    const rawEvents = this.scheduleRows
       .filter(row => row.day !== '—' && row.startTime !== '—')
-      .map(row => {
+      .map((row): RawEv | null => {
         const colIndex = this.visibleDays.indexOf(row.day);
         if (colIndex === -1) return null;
 
         const startMins = parseTimeToMinutes(row.startTime);
         const endMins   = parseTimeToMinutes(row.endTime);
-        const rowStart  = minutesToGridRow(startMins);
-        const rowEnd   = minutesToGridRow(endMins);    // e.g. 10:30 AM → 7
-        const rowSpan  = Math.max(1, rowEnd - rowStart); // → 3 slots = 90 min ✓
 
         if (!colorMap.has(row.eventName)) {
           colorMap.set(row.eventName, EVENT_COLORS[colorIdx++ % EVENT_COLORS.length]);
@@ -437,35 +719,30 @@ ngOnChanges(changes: SimpleChanges) {
           id: nextEventId++,
           label: row.eventName,
           ownerLabel: row.ownerName,
+          ownerKey: row.ownerKey,
           day: row.day,
           startMins,
           endMins,
           colIndex,
-          rowStart,
-          rowSpan,
           colorClass: colorMap.get(row.eventName)!,
-          isOverlap: false,
-          laneIndex: 0,
-          laneCount: 1,
-          laneSpan: 1,
-        } as GridEvent;
+        };
       })
-      .filter((ev): ev is GridEvent => ev !== null);
+      .filter((ev): ev is RawEv => ev !== null);
 
-    // Calendar-style lane allocation:
-    // only events that overlap in time share one day-column width.
-    const byDay = new Map<string, GridEvent[]>();
-    for (const ev of events) {
+    const byDay = new Map<string, RawEv[]>();
+    for (const ev of rawEvents) {
       const bucket = byDay.get(ev.day) ?? [];
       bucket.push(ev);
       byDay.set(ev.day, bucket);
     }
 
+    const grid: GridEvent[] = [];
+
     for (const dayEvents of byDay.values()) {
       dayEvents.sort((a, b) => (a.startMins - b.startMins) || (a.endMins - b.endMins));
 
-      const clusters: GridEvent[][] = [];
-      let current: GridEvent[] = [];
+      const clusters: RawEv[][] = [];
+      let current: RawEv[] = [];
       let currentMaxEnd = -1;
 
       for (const ev of dayEvents) {
@@ -488,65 +765,141 @@ ngOnChanges(changes: SimpleChanges) {
         clusters.push(current);
       }
 
+      // Collision state follows real time overlap only (clusters above). Do not merge
+      // clusters by half-hour grid rows — e.g. 1:40 PM end and 1:55 PM start share the
+      // 1:30–2:00 row but are not a conflict.
+
       for (const cluster of clusters) {
-        const laneEndTimes: number[] = [];
-        const laneById = new Map<number, number>();
-
-        for (const ev of cluster) {
-          let lane = -1;
-          for (let i = 0; i < laneEndTimes.length; i++) {
-            if (ev.startMins >= laneEndTimes[i]) {
-              lane = i;
-              break;
-            }
-          }
-          if (lane === -1) {
-            lane = laneEndTimes.length;
-            laneEndTimes.push(ev.endMins);
-          } else {
-            laneEndTimes[lane] = ev.endMins;
-          }
-          laneById.set(ev.id, lane);
+        if (cluster.length === 1) {
+          const ev = cluster[0];
+          const rowStart = minutesToGridRowStart(ev.startMins);
+          const rowEndEx = minutesToGridRowEndExclusive(ev.endMins);
+          const rowSpan = Math.max(1, rowEndEx - rowStart);
+          const { marginTopPx, heightPx } = eventVisualMetrics(
+            ev.startMins,
+            ev.endMins,
+            rowStart,
+            rowSpan
+          );
+          const member: CollisionMember = {
+            label: ev.label,
+            ownerLabel: ev.ownerLabel,
+            startMins: ev.startMins,
+            endMins: ev.endMins,
+            colorClass: ev.colorClass,
+          };
+          grid.push({
+            id: ev.id,
+            label: ev.label,
+            ownerLabel: ev.ownerLabel,
+            day: ev.day,
+            startMins: ev.startMins,
+            endMins: ev.endMins,
+            colIndex: ev.colIndex,
+            rowStart,
+            rowSpan,
+            marginTopPx,
+            heightPx,
+            colorClass: ev.colorClass,
+            isOverlap: false,
+            collisionTotal: 1,
+            collisionMembers: [member],
+            windowStartMins: ev.startMins,
+            windowEndMins: ev.endMins,
+          });
+          continue;
         }
 
-        const laneCount = Math.max(1, laneEndTimes.length);
-        for (const ev of cluster) {
-          ev.laneCount = laneCount;
-          ev.laneIndex = laneById.get(ev.id) ?? 0;
-          ev.isOverlap = laneCount > 1;
-          ev.laneSpan = 1;
-        }
+        const clusterStart = Math.min(...cluster.map(c => c.startMins));
+        const clusterEnd = Math.max(...cluster.map(c => c.endMins));
+        const rowStart = minutesToGridRowStart(clusterStart);
+        const rowEndEx = minutesToGridRowEndExclusive(clusterEnd);
+        const rowSpan = Math.max(1, rowEndEx - rowStart);
+        const { marginTopPx, heightPx } = eventVisualMetrics(
+          clusterStart,
+          clusterEnd,
+          rowStart,
+          rowSpan
+        );
 
-        // Expand events horizontally into adjacent free lanes.
-        // This ensures solo events can occupy full width while true overlaps split space.
-        for (const ev of cluster) {
-          let span = 1;
-          for (let lane = ev.laneIndex + 1; lane < laneCount; lane++) {
-            const blocked = cluster.some((other) => {
-              if (other.id === ev.id) return false;
-              if ((laneById.get(other.id) ?? 0) !== lane) return false;
-              return ev.startMins < other.endMins && other.startMins < ev.endMins;
-            });
-            if (blocked) break;
-            span++;
+        const pickPrimary = (items: RawEv[]): RawEv => {
+          if (this.isComparingSchedules()) {
+            const me = items.find(i => (i.ownerLabel ?? '').trim().toLowerCase() === 'me');
+            if (me) return me;
           }
-          ev.laneSpan = span;
-        }
+
+          const sorted = [...items].sort((a, b) => {
+            const da = a.endMins - a.startMins;
+            const db = b.endMins - b.startMins;
+            if (db !== da) return db - da;
+            if (a.startMins !== b.startMins) return a.startMins - b.startMins;
+            return a.id - b.id;
+          });
+          return sorted[0];
+        };
+
+        const primary = pickPrimary(cluster);
+        const collisionMembers: CollisionMember[] = cluster
+          .map((c) => ({
+            label: c.label,
+            ownerLabel: c.ownerLabel,
+            startMins: c.startMins,
+            endMins: c.endMins,
+            colorClass: c.colorClass,
+          }))
+          .sort((a, b) =>
+            a.startMins !== b.startMins ? a.startMins - b.startMins : a.label.localeCompare(b.label)
+          );
+
+        grid.push({
+          id: primary.id,
+          label: primary.label,
+          ownerLabel: primary.ownerLabel,
+          day: primary.day,
+          startMins: primary.startMins,
+          endMins: primary.endMins,
+          colIndex: primary.colIndex,
+          rowStart,
+          rowSpan,
+          marginTopPx,
+          heightPx,
+          colorClass: primary.colorClass,
+          isOverlap: true,
+          collisionTotal: cluster.length,
+          collisionMembers,
+          windowStartMins: clusterStart,
+          windowEndMins: clusterEnd,
+        });
       }
     }
 
-    this.gridEvents = events;
+    const dayRank = (d: string) => {
+      const i = DAYS.indexOf(d);
+      return i === -1 ? 99 : i;
+    };
+    grid.sort((a, b) =>
+      a.day === b.day ? a.startMins - b.startMins : dayRank(a.day) - dayRank(b.day)
+    );
+    this.collisionDrawer = null;
+    this.gridEvents = grid;
   }
 
   isToday(day: string): boolean {
     return day === new Date().toLocaleDateString('en-US', { weekday: 'long' });
   }
 
-  private isComparingSchedules(): boolean {
+  isComparingSchedules(): boolean {
     return this.externalRows != null;
   }
 
   getVisibleLabel(ev: GridEvent): string {
+    if (ev.collisionTotal > 1) {
+      const titles = this.overlapClassTitles(ev.collisionMembers);
+      if (this.isComparingSchedules()) {
+        return `${titles} (${this.overlapOwnerGroup(ev.collisionMembers)})`;
+      }
+      return titles;
+    }
     if (this.isComparingSchedules() && ev.ownerLabel) {
       return `${ev.label} (${ev.ownerLabel})`;
     }
@@ -554,10 +907,33 @@ ngOnChanges(changes: SimpleChanges) {
   }
 
   getEventTimeRange(ev: GridEvent): string {
-    return `${formatMinutes(ev.startMins)} – ${formatMinutes(ev.endMins)}`;
+    return `${formatMinutes(ev.windowStartMins)} – ${formatMinutes(ev.windowEndMins)}`;
   }
 
   getEventTooltip(ev: GridEvent): string {
+    if (ev.collisionTotal > 1) {
+      const head = this.isComparingSchedules()
+        ? `${this.overlapClassTitles(ev.collisionMembers)} (${this.overlapOwnerGroup(ev.collisionMembers)})`
+        : `Classes: ${this.overlapClassTitles(ev.collisionMembers)}`;
+      const lines = [
+        head,
+        `Day: ${ev.day}`,
+        `Overlap window: ${formatMinutes(ev.windowStartMins)} – ${formatMinutes(ev.windowEndMins)}`,
+        '',
+        `Conflicts with ${ev.collisionTotal} classes — click “Collision · ${ev.collisionTotal}” for details.`,
+        '',
+      ];
+      const sorted = [...ev.collisionMembers].sort((a, b) =>
+        a.startMins !== b.startMins ? a.startMins - b.startMins : a.label.localeCompare(b.label)
+      );
+      for (const m of sorted) {
+        const who =
+          this.isComparingSchedules() && m.ownerLabel ? ` (${m.ownerLabel})` : '';
+        lines.push(`• ${m.label}${who}: ${formatMinutes(m.startMins)} - ${formatMinutes(m.endMins)}`);
+      }
+      return lines.join('\n');
+    }
+
     const lines = [
       `Class: ${ev.label}`,
       `Day: ${ev.day}`,
@@ -567,5 +943,58 @@ ngOnChanges(changes: SimpleChanges) {
       lines.push(`Owner: ${ev.ownerLabel}`);
     }
     return lines.join('\n');
+  }
+
+  /** Distinct class names in a collision, for the main label. */
+  private overlapClassTitles(members: CollisionMember[]): string {
+    return [...new Set(members.map((m) => m.label))]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .join(' · ');
+  }
+
+  /** Distinct owners, Me first, then alphabetical. */
+  private overlapOwnerGroup(members: CollisionMember[]): string {
+    const set = new Set<string>();
+    for (const m of members) {
+      const o = (m.ownerLabel ?? '').trim();
+      set.add(o.length > 0 ? o : 'Unknown');
+    }
+    return [...set]
+      .sort((a, b) => {
+        const ra = a.toLowerCase() === 'me' ? 0 : 1;
+        const rb = b.toLowerCase() === 'me' ? 0 : 1;
+        if (ra !== rb) return ra - rb;
+        return a.localeCompare(b, undefined, { sensitivity: 'base' });
+      })
+      .join(' + ');
+  }
+
+  formatRange(startMins: number, endMins: number): string {
+    return `${formatMinutes(startMins)} – ${formatMinutes(endMins)}`;
+  }
+
+  isDrawerOpenFor(ev: GridEvent): boolean {
+    return this.collisionDrawer?.sourceId === ev.id;
+  }
+
+  openCollisionDrawer(event: MouseEvent, ev: GridEvent): void {
+    event.stopPropagation();
+    if (this.collisionDrawer?.sourceId === ev.id) {
+      this.closeCollisionDrawer();
+      return;
+    }
+    this.collisionDrawer = {
+      sourceId: ev.id,
+      day: ev.day,
+      windowStartMins: ev.windowStartMins,
+      windowEndMins: ev.windowEndMins,
+      members: [...ev.collisionMembers].sort((a, b) =>
+        a.startMins !== b.startMins ? a.startMins - b.startMins : a.label.localeCompare(b.label)
+      ),
+    };
+  }
+
+  closeCollisionDrawer(): void {
+    this.collisionDrawer = null;
   }
 }
