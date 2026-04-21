@@ -69,6 +69,28 @@ const DAY_MAP: Record<string, string> = {
 
 /** Merge same class + same owner when separated only by a short break (e.g. passing period). */
 const SCHEDULE_MERGE_GAP_MAX_MINUTES = 15;
+/** Visual-only compaction: close tiny breaks between adjacent blocks without changing event times. */
+const VISUAL_GAP_CLOSE_MAX_MINUTES = 15;
+
+/**
+ * Normalize a class "code key" so related sections compare equal.
+ * Examples:
+ * - "CSE 100 - LEC" -> "cse 100"
+ * - "MATH-221 Discussion" -> "math 221"
+ */
+function classCodeKey(eventName: string): string {
+  const cleaned = (eventName ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  const parts = cleaned.split(' ');
+  const dept = parts.find((p) => /[a-z]/.test(p)) ?? '';
+  const num = parts.find((p) => /\d/.test(p)) ?? '';
+  if (dept && num) return `${dept} ${num}`;
+  return cleaned;
+}
 
 function parseTimeToMinutes(time: string): number {
   if (!time || time === '—') return 0;
@@ -375,7 +397,7 @@ function formatMinutes(minutes: number): string {
     }
 
     .ev-time {
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 600;
       line-height: 1.15;
       opacity: 0.88;
@@ -723,8 +745,8 @@ ngOnChanges(changes: SimpleChanges) {
       }
       const o1 = (prev.ownerName ?? prev.ownerKey ?? '').trim().toLowerCase();
       const o2 = (row.ownerName ?? row.ownerKey ?? '').trim().toLowerCase();
-      const c1 = (prev.eventName ?? '').trim().toLowerCase();
-      const c2 = (row.eventName ?? '').trim().toLowerCase();
+      const c1 = classCodeKey(prev.eventName ?? '');
+      const c2 = classCodeKey(row.eventName ?? '');
       if (prev.day === row.day && c1 === c2 && o1 === o2) {
         const gap = parseTimeToMinutes(row.startTime) - parseTimeToMinutes(prev.endTime);
         if (gap >= 0 && gap <= SCHEDULE_MERGE_GAP_MAX_MINUTES) {
@@ -948,8 +970,57 @@ ngOnChanges(changes: SimpleChanges) {
     grid.sort((a, b) =>
       a.day === b.day ? a.startMins - b.startMins : dayRank(a.day) - dayRank(b.day)
     );
+    this.compactShortVisualGaps(grid);
     this.collisionDrawer = null;
     this.gridEvents = grid;
+  }
+
+  /**
+   * Rendering-only pass:
+   * If two non-overlapping blocks in the same day/column have a short gap (<= 15 min),
+   * close the visual gap while preserving true start/end values for labels/tooltips.
+   */
+  private compactShortVisualGaps(events: GridEvent[]): void {
+    const byDayCol = new Map<string, GridEvent[]>();
+    for (const ev of events) {
+      const key = `${ev.day}__${ev.colIndex}`;
+      const bucket = byDayCol.get(key) ?? [];
+      bucket.push(ev);
+      byDayCol.set(key, bucket);
+    }
+
+    for (const bucket of byDayCol.values()) {
+      bucket.sort((a, b) => a.startMins - b.startMins || a.endMins - b.endMins);
+      let prevVisualEnd = -1;
+
+      for (const ev of bucket) {
+        const duration = Math.max(0, ev.endMins - ev.startMins);
+        let visualStart = ev.startMins;
+        if (prevVisualEnd >= 0) {
+          const actualGap = ev.startMins - prevVisualEnd;
+          if (actualGap > 0 && actualGap <= VISUAL_GAP_CLOSE_MAX_MINUTES) {
+            visualStart = prevVisualEnd;
+          }
+        }
+        const visualEnd = visualStart + duration;
+        const rowStart = minutesToGridRowStart(visualStart);
+        const rowEndEx = minutesToGridRowEndExclusive(visualEnd);
+        const rowSpan = Math.max(1, rowEndEx - rowStart);
+        const { marginTopPx, heightPx } = eventVisualMetrics(
+          visualStart,
+          visualEnd,
+          rowStart,
+          rowSpan
+        );
+
+        ev.rowStart = rowStart;
+        ev.rowSpan = rowSpan;
+        ev.marginTopPx = marginTopPx;
+        ev.heightPx = heightPx;
+
+        prevVisualEnd = visualEnd;
+      }
+    }
   }
 
   isToday(day: string): boolean {
@@ -962,9 +1033,9 @@ ngOnChanges(changes: SimpleChanges) {
 
   getVisibleLabel(ev: GridEvent): string {
     if (ev.collisionTotal > 1) {
-      const titles = this.overlapClassTitles(ev.collisionMembers);
+      const titles = this.overlapClassTitlesCompact(ev.collisionMembers);
       if (this.isComparingSchedules()) {
-        return `${titles} (${this.overlapOwnerGroup(ev.collisionMembers)})`;
+        return `${titles} (${this.overlapOwnerGroupCompact(ev.collisionMembers)})`;
       }
       return titles;
     }
@@ -1020,6 +1091,14 @@ ngOnChanges(changes: SimpleChanges) {
       .join(' · ');
   }
 
+  /** Compact class title for block header: Class1 * Class2 + N more */
+  private overlapClassTitlesCompact(members: CollisionMember[]): string {
+    const items = [...new Set(members.map((m) => m.label))]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    if (items.length <= 2) return items.join(' • ');
+    return `${items[0]} * ${items[1]} + ${items.length - 2} more`;
+  }
+
   /** Distinct owners, Me first, then alphabetical. */
   private overlapOwnerGroup(members: CollisionMember[]): string {
     const set = new Set<string>();
@@ -1035,6 +1114,13 @@ ngOnChanges(changes: SimpleChanges) {
         return a.localeCompare(b, undefined, { sensitivity: 'base' });
       })
       .join(' + ');
+  }
+
+  /** Compact owner title for block header: Me + Name1 + N more */
+  private overlapOwnerGroupCompact(members: CollisionMember[]): string {
+    const items = this.overlapOwnerGroup(members).split(' + ');
+    if (items.length <= 2) return items.join(' + ');
+    return `${items[0]} + ${items[1]} + ${items.length - 2} more`;
   }
 
   formatRange(startMins: number, endMins: number): string {
